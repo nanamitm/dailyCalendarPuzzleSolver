@@ -9,22 +9,20 @@ permissions:
   contents: write
 
 jobs:
+  # ── GUI + C++ CUI (per platform) ─────────────────────────────────────────
   build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          # ── Windows x64 (MSVC + Qt installer) ──────────────────────────
           - os: windows-latest
             artifact: windows-x64
             qt_arch: win64_msvc2022_64
 
-          # ── Linux x64 (GCC + Qt installer) ─────────────────────────────
           - os: ubuntu-22.04
             artifact: linux-x64
             qt_arch: gcc_64
 
-          # ── Linux ARM64 (GCC + apt, Qt 6.4 from Ubuntu 24.04) ──────────
           - os: ubuntu-24.04-arm
             artifact: linux-arm64
             apt_qt: true
@@ -34,8 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Qt via online installer (Windows / Linux x64)
-      - name: Install Qt
+      - name: Install Qt (installer)
         if: "!matrix.apt_qt"
         uses: jurplel/install-qt-action@v4
         with:
@@ -43,25 +40,38 @@ jobs:
           arch: ${{ matrix.qt_arch }}
           cache: true
 
-      # Qt via apt (Linux ARM64 — online installer is x86-only)
       - name: Install Qt (apt)
         if: matrix.apt_qt
         run: |
           sudo apt-get update
           sudo apt-get install -y qt6-base-dev cmake ninja-build
 
-      # Set up MSVC environment on Windows
       - name: Setup MSVC
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Configure
+      # ── Build Qt GUI ──────────────────────────────────────────────────
+      - name: Configure GUI
         run: cmake -B build -S gui_cpp -G Ninja -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build
+      - name: Build GUI
         run: cmake --build build --parallel
 
-      # ── Windows: bundle Qt DLLs with windeployqt ─────────────────────
+      # ── Build C++ CUI ─────────────────────────────────────────────────
+      - name: Build CUI (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          cl /EHsc /O2 /std:c++14 cpp\poodlepuzzleDailyCalendarSolver.cpp ^
+             /Fe:PuzzleSolverCUI.exe
+
+      - name: Build CUI (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          g++ -std=c++11 -O2 -o PuzzleSolverCUI \
+              cpp/poodlepuzzleDailyCalendarSolver.cpp
+
+      # ── Package ───────────────────────────────────────────────────────
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -69,32 +79,58 @@ jobs:
           $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "dev" }
           $deploy = "deploy"
           New-Item -ItemType Directory -Path $deploy | Out-Null
+          # GUI + Qt DLLs
           Copy-Item build\PuzzleSolverGUI.exe $deploy\
           windeployqt --release "$deploy\PuzzleSolverGUI.exe"
+          # CUI
+          Copy-Item PuzzleSolverCUI.exe $deploy\
           Compress-Archive -Path "$deploy\*" `
-            -DestinationPath "PuzzleSolverGUI-$tag-windows-x64.zip"
+            -DestinationPath "PuzzleSolver-$tag-windows-x64.zip"
 
-      # ── Linux: archive the binary ─────────────────────────────────────
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: |
           tag="${GITHUB_REF_NAME:-dev}"
-          name="PuzzleSolverGUI-${tag}-${{ matrix.artifact }}"
+          name="PuzzleSolver-${tag}-${{ matrix.artifact }}"
           mkdir "$name"
           cp build/PuzzleSolverGUI "$name/"
+          cp PuzzleSolverCUI       "$name/"
           tar -czf "${name}.tar.gz" "$name"
 
-      # Upload as Release asset when triggered by a tag
       - name: Upload to Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: PuzzleSolverGUI-*
+          files: PuzzleSolver-*
 
-      # Upload as workflow artifact for manual/branch builds
       - name: Upload artifact
         if: "!startsWith(github.ref, 'refs/tags/')"
         uses: actions/upload-artifact@v4
         with:
-          name: PuzzleSolverGUI-${{ matrix.artifact }}
-          path: PuzzleSolverGUI-*
+          name: PuzzleSolver-${{ matrix.artifact }}
+          path: PuzzleSolver-*
+
+  # ── Python CUI (platform-independent zip) ────────────────────────────────
+  python-cui:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package Python CUI
+        run: |
+          tag="${GITHUB_REF_NAME:-dev}"
+          zip -r "PuzzleSolver-${tag}-python-cui.zip" py/
+
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PuzzleSolver-*-python-cui.zip
+
+      - name: Upload artifact
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: PuzzleSolver-python-cui
+          path: PuzzleSolver-*-python-cui.zip
