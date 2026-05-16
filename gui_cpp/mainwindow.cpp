@@ -341,6 +341,10 @@ void MainWindow::onTriggerSolve()
     m_worker->date    = m_dateEdit->date();
     m_worker->findAll = m_findAllChk->isChecked();
 
+    // Reset board to "no pieces" state whenever a new solve starts,
+    // regardless of whether it was triggered by a date change or checkbox toggle.
+    m_board->setDate(m_worker->date);
+
     m_userCancelled = false;
     m_solutions.clear();
     m_idx = 0;
