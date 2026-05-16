@@ -79,9 +79,18 @@ jobs:
           $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "dev" }
           $deploy = "deploy"
           New-Item -ItemType Directory -Path $deploy | Out-Null
-          # GUI + Qt DLLs
+          # GUI + Qt DLLs (exclude unnecessary files)
           Copy-Item build\PuzzleSolverGUI.exe $deploy\
-          windeployqt --release "$deploy\PuzzleSolverGUI.exe"
+          windeployqt --release `
+            --no-compiler-runtime `
+            --no-translations `
+            --no-opengl-sw `
+            --no-system-d3d-compiler `
+            "$deploy\PuzzleSolverGUI.exe"
+          # Remove plugins not used by this app
+          Remove-Item -Recurse -Force "$deploy\imageformats" -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "$deploy\iconengines"  -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "$deploy\tls"          -ErrorAction SilentlyContinue
           # CUI
           Copy-Item PuzzleSolverCUI.exe $deploy\
           Compress-Archive -Path "$deploy\*" `
