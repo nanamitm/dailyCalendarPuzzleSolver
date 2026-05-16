@@ -123,7 +123,8 @@ jobs:
             --plugin qt \
             --output appimage
 
-          mv *x86_64.AppImage "PuzzleSolver-${tag}-linux-x64.AppImage"
+          appimg=$(find . -maxdepth 1 -name "*.AppImage" | head -1)
+          mv "$appimg" "PuzzleSolver-${tag}-linux-x64.AppImage"
           cp PuzzleSolverCUI  "PuzzleSolver-${tag}-linux-x64-cui"
 
       # ── Package: Linux ARM64 → tar.gz (requires Qt6 on target) ───────
