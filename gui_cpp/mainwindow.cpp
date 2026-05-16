@@ -201,7 +201,7 @@ void MainWindow::buildUi()
         m_board->setDate(d);
         scheduleSolve();
     });
-    connect(m_findAllChk, &QCheckBox::checkStateChanged, this, [this](auto) {
+    connect(m_findAllChk, &QCheckBox::toggled, this, [this](bool) {
         scheduleSolve();
     });
 

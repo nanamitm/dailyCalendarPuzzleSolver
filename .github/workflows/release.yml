@@ -1,0 +1,100 @@
+name: Build and Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Windows x64 (MSVC + Qt installer) ──────────────────────────
+          - os: windows-latest
+            artifact: windows-x64
+            qt_arch: win64_msvc2022_64
+
+          # ── Linux x64 (GCC + Qt installer) ─────────────────────────────
+          - os: ubuntu-22.04
+            artifact: linux-x64
+            qt_arch: gcc_64
+
+          # ── Linux ARM64 (GCC + apt, Qt 6.4 from Ubuntu 24.04) ──────────
+          - os: ubuntu-24.04-arm
+            artifact: linux-arm64
+            apt_qt: true
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Qt via online installer (Windows / Linux x64)
+      - name: Install Qt
+        if: "!matrix.apt_qt"
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.9.2'
+          arch: ${{ matrix.qt_arch }}
+          cache: true
+
+      # Qt via apt (Linux ARM64 — online installer is x86-only)
+      - name: Install Qt (apt)
+        if: matrix.apt_qt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev cmake ninja-build
+
+      # Set up MSVC environment on Windows
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure
+        run: cmake -B build -S gui_cpp -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      # ── Windows: bundle Qt DLLs with windeployqt ─────────────────────
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "dev" }
+          $deploy = "deploy"
+          New-Item -ItemType Directory -Path $deploy | Out-Null
+          Copy-Item build\PuzzleSolverGUI.exe $deploy\
+          windeployqt --release "$deploy\PuzzleSolverGUI.exe"
+          Compress-Archive -Path "$deploy\*" `
+            -DestinationPath "PuzzleSolverGUI-$tag-windows-x64.zip"
+
+      # ── Linux: archive the binary ─────────────────────────────────────
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          tag="${GITHUB_REF_NAME:-dev}"
+          name="PuzzleSolverGUI-${tag}-${{ matrix.artifact }}"
+          mkdir "$name"
+          cp build/PuzzleSolverGUI "$name/"
+          tar -czf "${name}.tar.gz" "$name"
+
+      # Upload as Release asset when triggered by a tag
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PuzzleSolverGUI-*
+
+      # Upload as workflow artifact for manual/branch builds
+      - name: Upload artifact
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: PuzzleSolverGUI-${{ matrix.artifact }}
+          path: PuzzleSolverGUI-*
