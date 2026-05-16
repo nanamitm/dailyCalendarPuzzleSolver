@@ -1,0 +1,16 @@
+# C++ build
+gui_cpp/build/
+
+# Visual Studio
+.vs/
+x64/
+*.user
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
