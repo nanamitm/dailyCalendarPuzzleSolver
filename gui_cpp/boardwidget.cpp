@@ -190,27 +190,30 @@ void BoardWidget::paintEvent(QPaintEvent*)
         }
     }
 
-    // ── Pass 3: piece cells with selective corner rounding ────────────────
-    for (int r = 0; r < BDYL; ++r) {
-        for (int c = 0; c < BDXL; ++c) {
-            int row = r+BOY, col = c+BOX;
-            int g   = cellGroup(row, col);
-            if (g < 1) continue;
-
-            int px = c*CELL, py = r*CELL;
-            bool tO = cellGroup(row-1, col) != g;   // top open
-            bool rO = cellGroup(row, col+1) != g;   // right open
-            bool bO = cellGroup(row+1, col) != g;   // bottom open
-            bool lO = cellGroup(row, col-1) != g;   // left open
-
-            auto path = cellPath(px, py, CELL, R,
-                                 tO && lO,   // top-left
-                                 tO && rO,   // top-right
-                                 bO && rO,   // bottom-right
-                                 bO && lO);  // bottom-left
+    // ── Pass 3: piece cells – union per piece to eliminate inter-cell seams ─
+    // Drawing each cell separately with antialiasing causes sub-pixel gaps at
+    // shared edges. Merging all cells of the same piece into one path removes
+    // interior edges entirely, so no seam lines appear.
+    p.setRenderHint(QPainter::Antialiasing, true);
+    for (int pieceVal = 1; pieceVal <= 10; ++pieceVal) {
+        QPainterPath piecePath;
+        for (int r = 0; r < BDYL; ++r) {
+            for (int c = 0; c < BDXL; ++c) {
+                int row = r+BOY, col = c+BOX;
+                if (cellGroup(row, col) != pieceVal) continue;
+                int px = c*CELL, py = r*CELL;
+                bool tO = cellGroup(row-1, col) != pieceVal;
+                bool rO = cellGroup(row, col+1) != pieceVal;
+                bool bO = cellGroup(row+1, col) != pieceVal;
+                bool lO = cellGroup(row, col-1) != pieceVal;
+                piecePath |= cellPath(px, py, CELL, R,
+                                      tO && lO, tO && rO, bO && rO, bO && lO);
+            }
+        }
+        if (!piecePath.isEmpty()) {
             p.setPen(Qt::NoPen);
-            p.setBrush(PIECE_COLORS[g]);
-            p.drawPath(path);
+            p.setBrush(PIECE_COLORS[pieceVal]);
+            p.drawPath(piecePath);
         }
     }
 
