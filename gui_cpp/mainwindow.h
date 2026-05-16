@@ -39,6 +39,7 @@ private:
     QCheckBox*    m_findAllChk   = nullptr;
     QAction*      m_autoAct      = nullptr;   // in gear menu
     QAction*      m_slideshowAct = nullptr;   // in gear menu
+    QAction*      m_alwaysOnTop  = nullptr;   // in gear menu
     BoardWidget*  m_board      = nullptr;
     QPushButton*  m_prevBtn    = nullptr;
     QPushButton*  m_nextBtn    = nullptr;

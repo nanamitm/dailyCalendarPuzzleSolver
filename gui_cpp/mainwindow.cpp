@@ -97,6 +97,7 @@ MainWindow::~MainWindow()
     s.setValue("findAll",      slideshowOn ? m_savedFindAll : m_findAllChk->isChecked());
     s.setValue("autoMidnight", slideshowOn ? m_savedAutoMid : m_autoAct->isChecked());
     s.setValue("slideshow",    slideshowOn);
+    s.setValue("alwaysOnTop",  m_alwaysOnTop->isChecked());
 
     if (m_worker) { m_worker->requestCancel(); m_worker->quit(); m_worker->wait(); }
 }
@@ -155,8 +156,10 @@ void MainWindow::buildUi()
     auto* gearMenu = new QMenu(this);
     m_autoAct      = gearMenu->addAction("Auto-update at midnight");
     m_slideshowAct = gearMenu->addAction("Slideshow (5 min)");
+    m_alwaysOnTop  = gearMenu->addAction("Always on top");
     m_autoAct->setCheckable(true);
     m_slideshowAct->setCheckable(true);
+    m_alwaysOnTop->setCheckable(true);
 
     connect(gearBtn, &QPushButton::clicked, this, [this, gearBtn, gearMenu]() {
         gearMenu->exec(gearBtn->mapToGlobal(gearBtn->rect().bottomLeft()));
@@ -171,6 +174,7 @@ void MainWindow::buildUi()
     m_findAllChk->setChecked(m_savedFindAll);
     m_autoAct->setChecked(m_savedAutoMid);
     m_slideshowAct->setChecked(s.value("slideshow", false).toBool());
+    m_alwaysOnTop->setChecked(s.value("alwaysOnTop", false).toBool());
     vbox->addLayout(topRow);
 
     // ── Board ─────────────────────────────────────────────────────────────
@@ -258,6 +262,13 @@ void MainWindow::buildUi()
     connect(m_findAllChk, &QCheckBox::toggled, this, [this](bool) {
         scheduleSolve();
     });
+    connect(m_alwaysOnTop, &QAction::toggled, this, [this](bool on) {
+        Qt::WindowFlags flags = windowFlags();
+        if (on) flags |=  Qt::WindowStaysOnTopHint;
+        else    flags &= ~Qt::WindowStaysOnTopHint;
+        setWindowFlags(flags);
+        show();  // setWindowFlags hides the window; show() restores it
+    });
 
     adjustSize();
     setFixedSize(sizeHint());
@@ -269,6 +280,12 @@ void MainWindow::buildUi()
         m_autoAct->setChecked(true);
         m_findAllChk->setEnabled(false);
         m_autoAct->setEnabled(false);
+    }
+
+    // Apply always-on-top from saved state
+    if (m_alwaysOnTop->isChecked()) {
+        setWindowFlags(windowFlags() | Qt::WindowStaysOnTopHint);
+        show();
     }
 
     // Today button: disabled when already showing today
