@@ -98,7 +98,7 @@ MainWindow::~MainWindow()
     s.setValue("autoMidnight", slideshowOn ? m_savedAutoMid : m_autoAct->isChecked());
     s.setValue("slideshow",    slideshowOn);
 
-    if (m_worker) { m_worker->quit(); m_worker->wait(); }
+    if (m_worker) { m_worker->requestCancel(); m_worker->quit(); m_worker->wait(); }
 }
 
 void MainWindow::buildUi()
@@ -200,8 +200,10 @@ void MainWindow::buildUi()
     auto* overlay = new SolveOverlay(m_board);
     m_overlay = overlay;
     connect(overlay, &SolveOverlay::cancelClicked, this, [this]() {
-        if (m_worker && m_worker->isRunning())
+        if (m_worker && m_worker->isRunning()) {
+            m_userCancelled = true;
             m_worker->requestCancel();
+        }
     });
 
     // ── Tick timer: updates overlay time every 100 ms ─────────────────────
@@ -281,6 +283,10 @@ void MainWindow::buildUi()
 
 void MainWindow::scheduleSolve()
 {
+    // BUG FIX: cancel the running worker immediately so the new solve
+    // starts promptly instead of waiting for the old one to finish.
+    if (m_worker && m_worker->isRunning())
+        m_worker->requestCancel();
     m_debounce->start();   // restarts the timer if already running
 }
 
@@ -322,7 +328,8 @@ void MainWindow::updateTodayMarker()
 void MainWindow::onTriggerSolve()
 {
     if (m_worker && m_worker->isRunning()) {
-        // Worker is busy — reschedule for after it finishes
+        // Worker is still running (cancelled but hasn't finished yet).
+        // Reschedule once it completes.
         connect(m_worker, &SolverWorker::solved, this, [this]() {
             scheduleSolve();
         }, Qt::SingleShotConnection);
@@ -334,6 +341,7 @@ void MainWindow::onTriggerSolve()
     m_worker->date    = m_dateEdit->date();
     m_worker->findAll = m_findAllChk->isChecked();
 
+    m_userCancelled = false;
     m_solutions.clear();
     m_idx = 0;
     m_prevBtn->setEnabled(false);
@@ -360,6 +368,12 @@ void MainWindow::onSolved()
 
     const SolverOutput& out = m_worker->result;
     const QDate date = m_worker->date;
+    const bool wasCancelled = m_worker->wasCancelled();
+
+    // If cancelled by a parameter change (not the user) and a new solve is
+    // already pending, skip the UI update — the new solve will refresh it.
+    if (wasCancelled && !m_userCancelled && m_debounce->isActive())
+        return;
 
     for (const Board& b : out.solutions)
         m_solutions.append(b);
@@ -375,17 +389,23 @@ void MainWindow::onSolved()
         // (Re)start slideshow if enabled and multiple solutions available
         if (m_slideshowAct->isChecked() && multi) m_slideshow->start();
         else                                       m_slideshow->stop();
+    } else if (wasCancelled) {
+        // BUG FIX: distinguish cancellation from "genuinely no solution"
+        m_solLabel->setText(m_userCancelled ? "Cancelled" : "");
+        m_board->setDate(date);
     } else {
         m_solLabel->setText("No solution found");
         m_board->setDate(date);
     }
 
-    m_statusLbl->setText(
-        QString("%1 solution(s)  ·  %2 ms  ·  %3 tries  ·  %4 pieces placed")
-            .arg(m_solutions.size())
-            .arg(out.elapsedMs, 0, 'f', 1)
-            .arg(out.tries)
-            .arg(out.pcsPlaced));
+    if (!wasCancelled) {
+        m_statusLbl->setText(
+            QString("%1 solution(s)  ·  %2 ms  ·  %3 tries  ·  %4 pieces placed")
+                .arg(m_solutions.size())
+                .arg(out.elapsedMs, 0, 'f', 1)
+                .arg(out.tries)
+                .arg(out.pcsPlaced));
+    }
 }
 
 void MainWindow::showSolution(int idx)

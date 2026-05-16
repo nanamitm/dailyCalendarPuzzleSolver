@@ -28,7 +28,7 @@ private slots:
 
 private:
     void buildUi();
-    void scheduleSolve();    // restart debounce timer
+    void scheduleSolve();    // cancel running worker + restart debounce timer
     void scheduleMidnight(); // arm the midnight timer
     void showSolution(int idx);
     void updateTodayMarker(); // highlight today on the calendar popup
@@ -52,6 +52,7 @@ private:
     QTimer*            m_slideshow      = nullptr;  // advances solution every 5 min
     bool               m_savedFindAll   = false;    // state before slideshow locked it
     bool               m_savedAutoMid   = false;
+    bool               m_userCancelled  = false;    // true when user pressed Cancel
     QElapsedTimer      m_elapsed;
     SolverWorker*      m_worker     = nullptr;
     SolveOverlay*      m_overlay    = nullptr;

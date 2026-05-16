@@ -19,6 +19,9 @@ public:
     // Call from any thread to abort the search
     void requestCancel() { m_cancelled.store(true, std::memory_order_relaxed); }
 
+    // True if the solve was aborted via requestCancel() (read after solved() fires)
+    bool wasCancelled() const { return m_cancelled.load(std::memory_order_relaxed); }
+
 signals:
     void solved();
 
