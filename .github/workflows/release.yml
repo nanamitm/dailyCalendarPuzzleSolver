@@ -57,31 +57,44 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Use Inkscape (available in GitHub Actions Windows runners) or
-          # fall back to copying the SVG rendered sizes via magick
-          $svgPath = "gui_cpp\puzzlesolver.svg"
-          $icoPath = "gui_cpp\puzzlesolver.ico"
-          # Try Inkscape first, then ImageMagick
+          $svgPath   = "gui_cpp\puzzlesolver.svg"
+          $icoPath   = "gui_cpp\puzzlesolver.ico"
+          $sizes     = @(256, 128, 64, 48, 32, 16)
+          $converted = $false
+
+          # Attempt 1: Inkscape
           if (Get-Command inkscape -ErrorAction SilentlyContinue) {
-            $sizes = @(16, 32, 48, 64, 128, 256)
             $pngs = @()
             foreach ($sz in $sizes) {
               $out = "icon_${sz}.png"
               inkscape --export-filename=$out --export-width=$sz --export-height=$sz $svgPath
-              $pngs += $out
+              if ($LASTEXITCODE -eq 0) { $pngs += $out }
             }
-            magick $pngs $icoPath
-          } elseif (Get-Command magick -ErrorAction SilentlyContinue) {
-            magick -background none $svgPath `
-              \( -clone 0 -resize 256x256 \) `
-              \( -clone 0 -resize 128x128 \) `
-              \( -clone 0 -resize 64x64 \) `
-              \( -clone 0 -resize 48x48 \) `
-              \( -clone 0 -resize 32x32 \) `
-              \( -clone 0 -resize 16x16 \) `
-              -delete 0 $icoPath
+            if ($pngs.Count -gt 0) {
+              & magick @pngs $icoPath
+              $converted = ($LASTEXITCODE -eq 0)
+            }
+          }
+
+          # Attempt 2: ImageMagick – render each size separately
+          # (avoids \( \) Unix-shell grouping syntax which is invalid in PowerShell)
+          if (-not $converted -and (Get-Command magick -ErrorAction SilentlyContinue)) {
+            $pngs = @()
+            foreach ($sz in $sizes) {
+              $out = "icon_${sz}.png"
+              & magick -background none -density 300 $svgPath -resize "${sz}x${sz}" -extent "${sz}x${sz}" $out
+              if ($LASTEXITCODE -eq 0) { $pngs += $out }
+            }
+            if ($pngs.Count -gt 0) {
+              & magick @pngs $icoPath
+              $converted = ($LASTEXITCODE -eq 0)
+            }
+          }
+
+          if ($converted) {
+            Write-Host "Icon generated: $icoPath"
           } else {
-            Write-Host "No icon converter found; EXE will use default icon"
+            Write-Host "Icon generation skipped – EXE will use the default Windows icon"
           }
 
       # ── Build Qt GUI ──────────────────────────────────────────────────
