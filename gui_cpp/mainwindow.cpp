@@ -260,6 +260,15 @@ void MainWindow::buildUi()
     adjustSize();
     setFixedSize(sizeHint());
 
+    // If slideshow was ON when saved, the toggled signal wasn't connected
+    // during QSettings restore — apply the lock state explicitly now
+    if (m_slideshowAct->isChecked()) {
+        m_findAllChk->setChecked(true);
+        m_autoAct->setChecked(true);
+        m_findAllChk->setEnabled(false);
+        m_autoAct->setEnabled(false);
+    }
+
     // Today button: disabled when already showing today
     m_todayBtn->setEnabled(m_dateEdit->date() != QDate::currentDate());
 
@@ -386,6 +395,7 @@ void MainWindow::showSolution(int idx)
 
 void MainWindow::onPrev()
 {
+    if (m_solutions.isEmpty()) return;
     m_idx = (m_idx - 1 + m_solutions.size()) % m_solutions.size();
     showSolution(m_idx);
     m_solLabel->setText(

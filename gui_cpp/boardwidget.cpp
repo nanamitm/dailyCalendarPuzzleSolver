@@ -82,27 +82,31 @@ void BoardWidget::clear()
 
 using CellMap = QMap<QPair<int,int>, QString>;
 
-// All labels for every playable cell (used when no board is loaded)
-static CellMap buildAllLabelsMap()
+// All labels for every playable cell (used when no board is loaded).
+// Built once and cached — the layout never changes.
+static const CellMap& buildAllLabelsMap()
 {
-    CellMap m;
-    static const char* MONTHS[] = {
-        "Jan","Feb","Mar","Apr","May","Jun",
-        "Jul","Aug","Sep","Oct","Nov","Dec"
-    };
-    static const char* WEEKDAYS[] = { "Mon","Tue","Wed","Thu","Fri","Sat" };
+    static const CellMap s_map = []() {
+        CellMap m;
+        static const char* MONTHS[] = {
+            "Jan","Feb","Mar","Apr","May","Jun",
+            "Jul","Aug","Sep","Oct","Nov","Dec"
+        };
+        static const char* WEEKDAYS[] = { "Mon","Tue","Wed","Thu","Fri","Sat" };
 
-    for (int i = 0; i < 12; ++i)
-        m[{(i/6)+BOY, (i%6)+BOX}] = MONTHS[i];
+        for (int i = 0; i < 12; ++i)
+            m[{(i/6)+BOY, (i%6)+BOX}] = MONTHS[i];
 
-    for (int i = 0; i < 31; ++i)
-        m[{(i/7)+BOY+2, (i%7)+BOX}] = QString("%1").arg(i+1, 2, 10, QChar('0'));
+        for (int i = 0; i < 31; ++i)
+            m[{(i/7)+BOY+2, (i%7)+BOX}] = QString("%1").arg(i+1, 2, 10, QChar('0'));
 
-    m[{9, 6}] = "Sun";
-    for (int i = 0; i < 6; ++i)
-        m[{(i/3)+9, (i%3)+7}] = WEEKDAYS[i];
+        m[{9, 6}] = "Sun";
+        for (int i = 0; i < 6; ++i)
+            m[{(i/3)+9, (i%3)+7}] = WEEKDAYS[i];
 
-    return m;
+        return m;
+    }();
+    return s_map;
 }
 
 // Build a map of (row,col) → date label for the current date
