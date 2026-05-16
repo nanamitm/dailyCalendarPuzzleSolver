@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Daily Calendar Puzzle Solver
+Exec=PuzzleSolverGUI
+Icon=puzzlesolver
+Categories=Game;
+Terminal=false

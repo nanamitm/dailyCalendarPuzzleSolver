@@ -109,17 +109,8 @@ jobs:
                    AppDir/usr/share/icons/hicolor/256x256/apps
 
           cp build/PuzzleSolverGUI AppDir/usr/bin/
-
-          cat > AppDir/usr/share/applications/puzzlesolver.desktop << 'DESKTOP'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Daily Calendar Puzzle Solver
-Exec=PuzzleSolverGUI
-Icon=puzzlesolver
-Categories=Game;
-Terminal=false
-DESKTOP
+          cp gui_cpp/puzzlesolver.desktop \
+             AppDir/usr/share/applications/
 
           convert img/poodlepuzzleDailyCalendarPuzzle.jpeg \
                   -resize 256x256 \
