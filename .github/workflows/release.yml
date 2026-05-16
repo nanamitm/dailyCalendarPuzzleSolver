@@ -44,7 +44,8 @@ jobs:
         if: matrix.apt_qt
         run: |
           sudo apt-get update
-          sudo apt-get install -y qt6-base-dev cmake ninja-build
+          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools \
+                                  cmake ninja-build imagemagick
 
       - name: Setup MSVC
         if: runner.os == 'Windows'
@@ -71,7 +72,7 @@ jobs:
           g++ -std=c++11 -O2 -o PuzzleSolverCUI \
               cpp/poodlepuzzleDailyCalendarSolver.cpp
 
-      # ── Package ───────────────────────────────────────────────────────
+      # ── Package: Windows ──────────────────────────────────────────────
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -79,7 +80,6 @@ jobs:
           $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "dev" }
           $deploy = "deploy"
           New-Item -ItemType Directory -Path $deploy | Out-Null
-          # GUI + Qt DLLs (exclude unnecessary files)
           Copy-Item build\PuzzleSolverGUI.exe $deploy\
           windeployqt --release `
             --no-compiler-runtime `
@@ -87,20 +87,60 @@ jobs:
             --no-opengl-sw `
             --no-system-d3d-compiler `
             "$deploy\PuzzleSolverGUI.exe"
-          # Remove plugins not used by this app
           Remove-Item -Recurse -Force "$deploy\imageformats" -ErrorAction SilentlyContinue
           Remove-Item -Recurse -Force "$deploy\iconengines"  -ErrorAction SilentlyContinue
           Remove-Item -Recurse -Force "$deploy\tls"          -ErrorAction SilentlyContinue
-          # CUI
           Copy-Item PuzzleSolverCUI.exe $deploy\
           Compress-Archive -Path "$deploy\*" `
             -DestinationPath "PuzzleSolver-$tag-windows-x64.zip"
 
-      - name: Package (Linux)
-        if: runner.os == 'Linux'
+      # ── Package: Linux x64 → AppImage + CUI binary ───────────────────
+      - name: Package AppImage (Linux x64)
+        if: matrix.artifact == 'linux-x64'
         run: |
           tag="${GITHUB_REF_NAME:-dev}"
-          name="PuzzleSolver-${tag}-${{ matrix.artifact }}"
+
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+          mkdir -p AppDir/usr/bin \
+                   AppDir/usr/share/applications \
+                   AppDir/usr/share/icons/hicolor/256x256/apps
+
+          cp build/PuzzleSolverGUI AppDir/usr/bin/
+
+          cat > AppDir/usr/share/applications/puzzlesolver.desktop << 'DESKTOP'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Daily Calendar Puzzle Solver
+Exec=PuzzleSolverGUI
+Icon=puzzlesolver
+Categories=Game;
+Terminal=false
+DESKTOP
+
+          convert img/poodlepuzzleDailyCalendarPuzzle.jpeg \
+                  -resize 256x256 \
+                  AppDir/usr/share/icons/hicolor/256x256/apps/puzzlesolver.png
+
+          export QMAKE=$(which qmake6)
+          export QML_SOURCES_PATHS=.
+          ARCH=x86_64 ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
+            --appdir AppDir \
+            --plugin qt \
+            --output appimage
+
+          mv *x86_64.AppImage "PuzzleSolver-${tag}-linux-x64.AppImage"
+          cp PuzzleSolverCUI  "PuzzleSolver-${tag}-linux-x64-cui"
+
+      # ── Package: Linux ARM64 → tar.gz (requires Qt6 on target) ───────
+      - name: Package tar.gz (Linux ARM64)
+        if: matrix.artifact == 'linux-arm64'
+        run: |
+          tag="${GITHUB_REF_NAME:-dev}"
+          name="PuzzleSolver-${tag}-linux-arm64"
           mkdir "$name"
           cp build/PuzzleSolverGUI "$name/"
           cp PuzzleSolverCUI       "$name/"

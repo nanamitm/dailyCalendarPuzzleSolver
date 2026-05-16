@@ -2,6 +2,61 @@
 
 This repository contains a generic tetris like puzzle solver in python, and a (little less) generic tetris like puzzle solver in C++.
 
+## Downloads
+
+Pre-built binaries are available on the [Releases page](../../releases).
+
+| File | Platform | Notes |
+|---|---|---|
+| `PuzzleSolver-*-windows-x64.zip` | Windows 10/11 x64 | GUI + CUI, Qt6 bundled |
+| `PuzzleSolver-*-linux-x64.AppImage` | Linux x64 | GUI, self-contained |
+| `PuzzleSolver-*-linux-x64-cui` | Linux x64 | CUI only, no dependencies |
+| `PuzzleSolver-*-linux-arm64.tar.gz` | Linux ARM64 | GUI + CUI, **requires Qt6** (see below) |
+| `PuzzleSolver-*-python-cui.zip` | Any (Python 3) | Python CUI scripts |
+
+### Linux ARM64: Installing Qt6
+
+The ARM64 GUI binary requires Qt6 Widgets to be installed on the target system.
+
+**Ubuntu / Debian:**
+```bash
+sudo apt-get install libqt6widgets6
+```
+
+**Fedora / RHEL:**
+```bash
+sudo dnf install qt6-qtbase
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S qt6-base
+```
+
+After installing Qt6, run with:
+```bash
+chmod +x PuzzleSolverGUI
+./PuzzleSolverGUI
+```
+
+## Qt6 GUI
+
+A graphical interface (`gui_cpp/`) built with Qt6 C++ is available alongside the command-line solvers. It provides:
+
+- Automatic solving when the date changes (with 300 ms debounce)
+- First solution or all-solutions mode
+- Solution navigation (◀ ▶)
+- Real-time solving overlay with cancel button
+- Midnight auto-update option
+- Dark mode support
+
+**Build requirements:** Qt 6.4+, CMake 3.16+, C++17 compiler
+
+```bash
+cmake -B build -S gui_cpp -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
 Four examples of puzzle solvers are provided with the python implementation, all using the generic puzzle.py and solver.py files.
 
 These four examples of puzzles are :
