@@ -6,6 +6,7 @@
 #include <QSettings>
 #include <QCalendarWidget>
 #include <QTextCharFormat>
+#include <QMenu>
 
 // ── Solving overlay ────────────────────────────────────────────────────────
 class SolveOverlay : public QWidget {
@@ -92,9 +93,9 @@ MainWindow::~MainWindow()
 {
     QSettings s;
     // If slideshow is ON the other two are locked; save the pre-lock states
-    bool slideshowOn = m_slideshowChk->isChecked();
+    bool slideshowOn = m_slideshowAct->isChecked();
     s.setValue("findAll",      slideshowOn ? m_savedFindAll : m_findAllChk->isChecked());
-    s.setValue("autoMidnight", slideshowOn ? m_savedAutoMid : m_autoChk->isChecked());
+    s.setValue("autoMidnight", slideshowOn ? m_savedAutoMid : m_autoAct->isChecked());
     s.setValue("slideshow",    slideshowOn);
 
     if (m_worker) { m_worker->quit(); m_worker->wait(); }
@@ -110,8 +111,6 @@ void MainWindow::buildUi()
 
     // ── Date + Find all ───────────────────────────────────────────────────
     auto* topRow = new QHBoxLayout;
-    topRow->addWidget(new QLabel("Date:", this));
-
     auto* prevDay = new QPushButton("◀", this);
     prevDay->setFixedWidth(28);
     topRow->addWidget(prevDay);
@@ -136,15 +135,32 @@ void MainWindow::buildUi()
         m_dateEdit->setDate(m_dateEdit->date().addDays(1));
     });
 
+    m_todayBtn = new QPushButton("Today", this);
+    m_todayBtn->setFixedWidth(50);
+    topRow->addWidget(m_todayBtn);
+    connect(m_todayBtn, &QPushButton::clicked, this, [this]() {
+        m_dateEdit->setDate(QDate::currentDate());
+    });
+
     m_findAllChk = new QCheckBox("Find all solutions", this);
     topRow->addWidget(m_findAllChk);
 
-    m_autoChk = new QCheckBox("Auto-update at midnight", this);
-    topRow->addWidget(m_autoChk);
-
-    m_slideshowChk = new QCheckBox("Slideshow (5 min)", this);
-    topRow->addWidget(m_slideshowChk);
+    // ── Gear button → settings popup menu ────────────────────────────
+    auto* gearBtn = new QPushButton("⚙", this);
+    gearBtn->setFixedWidth(28);
+    gearBtn->setToolTip("Settings");
+    topRow->addWidget(gearBtn);
     topRow->addStretch();
+
+    auto* gearMenu = new QMenu(this);
+    m_autoAct      = gearMenu->addAction("Auto-update at midnight");
+    m_slideshowAct = gearMenu->addAction("Slideshow (5 min)");
+    m_autoAct->setCheckable(true);
+    m_slideshowAct->setCheckable(true);
+
+    connect(gearBtn, &QPushButton::clicked, this, [this, gearBtn, gearMenu]() {
+        gearMenu->exec(gearBtn->mapToGlobal(gearBtn->rect().bottomLeft()));
+    });
 
     // ── Restore saved checkbox states ─────────────────────────────────────
     QSettings s;
@@ -153,8 +169,8 @@ void MainWindow::buildUi()
     m_savedFindAll = s.value("findAll", false).toBool();
     m_savedAutoMid = s.value("autoMidnight", false).toBool();
     m_findAllChk->setChecked(m_savedFindAll);
-    m_autoChk->setChecked(m_savedAutoMid);
-    m_slideshowChk->setChecked(s.value("slideshow", false).toBool());
+    m_autoAct->setChecked(m_savedAutoMid);
+    m_slideshowAct->setChecked(s.value("slideshow", false).toBool());
     vbox->addLayout(topRow);
 
     // ── Board ─────────────────────────────────────────────────────────────
@@ -199,23 +215,21 @@ void MainWindow::buildUi()
     m_slideshow = new QTimer(this);
     m_slideshow->setInterval(5 * 60 * 1000);
     connect(m_slideshow, &QTimer::timeout, this, &MainWindow::onNext);
-    connect(m_slideshowChk, &QCheckBox::toggled, this, [this](bool on) {
+    connect(m_slideshowAct, &QAction::toggled, this, [this](bool on) {
         if (on) {
-            // Save current states, then force both ON and lock them
             m_savedFindAll = m_findAllChk->isChecked();
-            m_savedAutoMid = m_autoChk->isChecked();
+            m_savedAutoMid = m_autoAct->isChecked();
             m_findAllChk->setChecked(true);
-            m_autoChk->setChecked(true);
+            m_autoAct->setChecked(true);
             m_findAllChk->setEnabled(false);
-            m_autoChk->setEnabled(false);
+            m_autoAct->setEnabled(false);
             if (m_solutions.size() > 1) m_slideshow->start();
         } else {
-            // Restore previous states and unlock
             m_slideshow->stop();
             m_findAllChk->setEnabled(true);
-            m_autoChk->setEnabled(true);
+            m_autoAct->setEnabled(true);
             m_findAllChk->setChecked(m_savedFindAll);
-            m_autoChk->setChecked(m_savedAutoMid);
+            m_autoAct->setChecked(m_savedAutoMid);
         }
     });
 
@@ -235,6 +249,7 @@ void MainWindow::buildUi()
     connect(m_prevBtn,    &QPushButton::clicked,        this, &MainWindow::onPrev);
     connect(m_nextBtn,    &QPushButton::clicked,        this, &MainWindow::onNext);
     connect(m_dateEdit,   &QDateEdit::dateChanged,      this, [this](QDate d) {
+        m_todayBtn->setEnabled(d != QDate::currentDate());
         m_board->setDate(d);
         scheduleSolve();
     });
@@ -244,6 +259,9 @@ void MainWindow::buildUi()
 
     adjustSize();
     setFixedSize(sizeHint());
+
+    // Today button: disabled when already showing today
+    m_todayBtn->setEnabled(m_dateEdit->date() != QDate::currentDate());
 
     // Mark today on the calendar popup
     updateTodayMarker();
@@ -273,7 +291,10 @@ void MainWindow::onMidnight()
         cal->setDateTextFormat(QDate::currentDate().addDays(-1), QTextCharFormat());
     updateTodayMarker();
 
-    if (m_autoChk->isChecked())
+    // After midnight "today" changed: re-evaluate button state
+    m_todayBtn->setEnabled(m_dateEdit->date() != QDate::currentDate());
+
+    if (m_autoAct->isChecked())
         m_dateEdit->setDate(QDate::currentDate()); // triggers dateChanged → scheduleSolve
     scheduleMidnight(); // arm for the following midnight
 }
@@ -343,7 +364,7 @@ void MainWindow::onSolved()
         m_nextBtn->setEnabled(multi);
         m_solLabel->setText(QString("Solution 1 / %1").arg(m_solutions.size()));
         // (Re)start slideshow if enabled and multiple solutions available
-        if (m_slideshowChk->isChecked() && multi) m_slideshow->start();
+        if (m_slideshowAct->isChecked() && multi) m_slideshow->start();
         else                                       m_slideshow->stop();
     } else {
         m_solLabel->setText("No solution found");

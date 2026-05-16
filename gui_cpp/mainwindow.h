@@ -3,6 +3,7 @@
 #include <QDateEdit>
 #include <QPushButton>
 #include <QCheckBox>
+#include <QAction>
 #include <QLabel>
 #include <QTimer>
 #include <QElapsedTimer>
@@ -34,9 +35,10 @@ private:
 
     // ── Widgets ──────────────────────────────────────────────────────────
     QDateEdit*    m_dateEdit   = nullptr;
+    QPushButton*  m_todayBtn   = nullptr;
     QCheckBox*    m_findAllChk   = nullptr;
-    QCheckBox*    m_autoChk      = nullptr;
-    QCheckBox*    m_slideshowChk = nullptr;
+    QAction*      m_autoAct      = nullptr;   // in gear menu
+    QAction*      m_slideshowAct = nullptr;   // in gear menu
     BoardWidget*  m_board      = nullptr;
     QPushButton*  m_prevBtn    = nullptr;
     QPushButton*  m_nextBtn    = nullptr;

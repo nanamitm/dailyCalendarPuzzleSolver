@@ -80,8 +80,32 @@ void BoardWidget::clear()
     update();
 }
 
-// Build a map of (row,col) → date label for the current date
 using CellMap = QMap<QPair<int,int>, QString>;
+
+// All labels for every playable cell (used when no board is loaded)
+static CellMap buildAllLabelsMap()
+{
+    CellMap m;
+    static const char* MONTHS[] = {
+        "Jan","Feb","Mar","Apr","May","Jun",
+        "Jul","Aug","Sep","Oct","Nov","Dec"
+    };
+    static const char* WEEKDAYS[] = { "Mon","Tue","Wed","Thu","Fri","Sat" };
+
+    for (int i = 0; i < 12; ++i)
+        m[{(i/6)+BOY, (i%6)+BOX}] = MONTHS[i];
+
+    for (int i = 0; i < 31; ++i)
+        m[{(i/7)+BOY+2, (i%7)+BOX}] = QString("%1").arg(i+1, 2, 10, QChar('0'));
+
+    m[{9, 6}] = "Sun";
+    for (int i = 0; i < 6; ++i)
+        m[{(i/3)+9, (i%3)+7}] = WEEKDAYS[i];
+
+    return m;
+}
+
+// Build a map of (row,col) → date label for the current date
 static CellMap buildDateMap(QDate d)
 {
     CellMap m;
@@ -108,6 +132,8 @@ void BoardWidget::paintEvent(QPaintEvent*)
     p.setFont(QFont("Segoe UI", 9, QFont::Bold));
 
     CellMap dateMap = buildDateMap(m_date);
+    // When no board is loaded show every cell's label; when solved only date cells get labels
+    const CellMap& labelMap = (m_board == nullptr) ? buildAllLabelsMap() : dateMap;
 
     // Returns the "group" of a board cell:
     //   -2 = off-board/corner   -1 = date label
@@ -143,14 +169,20 @@ void BoardWidget::paintEvent(QPaintEvent*)
         }
     }
 
-    // ── Pass 2: empty cells as rounded rects (palette-aware for dark mode) ─
+    // ── Pass 2: empty cells as rounded rects with optional label ─────────
     p.setRenderHint(QPainter::Antialiasing, true);
     p.setBrush(palette().color(QPalette::Mid));
     for (int r = 0; r < BDYL; ++r) {
         for (int c = 0; c < BDXL; ++c) {
-            if (cellGroup(r+BOY, c+BOX) != 0) continue;
+            int row = r+BOY, col = c+BOX;
+            if (cellGroup(row, col) != 0) continue;
             p.setPen(Qt::NoPen);
             p.drawRoundedRect(c*CELL+2, r*CELL+2, CELL-4, CELL-4, R, R);
+            auto key = QPair<int,int>(row, col);
+            if (labelMap.contains(key)) {
+                p.setPen(palette().color(QPalette::Text));
+                p.drawText(c*CELL, r*CELL, CELL, CELL, Qt::AlignCenter, labelMap[key]);
+            }
         }
     }
 
