@@ -4,6 +4,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QSettings>
+#include <QCalendarWidget>
+#include <QTextCharFormat>
 
 // ── Solving overlay ────────────────────────────────────────────────────────
 class SolveOverlay : public QWidget {
@@ -89,8 +91,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 MainWindow::~MainWindow()
 {
     QSettings s;
-    s.setValue("findAll",     m_findAllChk->isChecked());
-    s.setValue("autoMidnight", m_autoChk->isChecked());
+    // If slideshow is ON the other two are locked; save the pre-lock states
+    bool slideshowOn = m_slideshowChk->isChecked();
+    s.setValue("findAll",      slideshowOn ? m_savedFindAll : m_findAllChk->isChecked());
+    s.setValue("autoMidnight", slideshowOn ? m_savedAutoMid : m_autoChk->isChecked());
+    s.setValue("slideshow",    slideshowOn);
 
     if (m_worker) { m_worker->quit(); m_worker->wait(); }
 }
@@ -136,12 +141,20 @@ void MainWindow::buildUi()
 
     m_autoChk = new QCheckBox("Auto-update at midnight", this);
     topRow->addWidget(m_autoChk);
+
+    m_slideshowChk = new QCheckBox("Slideshow (5 min)", this);
+    topRow->addWidget(m_slideshowChk);
     topRow->addStretch();
 
     // ── Restore saved checkbox states ─────────────────────────────────────
     QSettings s;
-    m_findAllChk->setChecked(s.value("findAll", false).toBool());
-    m_autoChk->setChecked(s.value("autoMidnight", false).toBool());
+    // Restore in the right order: non-slideshow states first, then slideshow
+    // (toggling slideshow will lock the others if it's ON)
+    m_savedFindAll = s.value("findAll", false).toBool();
+    m_savedAutoMid = s.value("autoMidnight", false).toBool();
+    m_findAllChk->setChecked(m_savedFindAll);
+    m_autoChk->setChecked(m_savedAutoMid);
+    m_slideshowChk->setChecked(s.value("slideshow", false).toBool());
     vbox->addLayout(topRow);
 
     // ── Board ─────────────────────────────────────────────────────────────
@@ -182,6 +195,30 @@ void MainWindow::buildUi()
         overlay->updateTime(m_elapsed.elapsed());
     });
 
+    // ── Slideshow timer (advances solution every 5 minutes) ──────────────
+    m_slideshow = new QTimer(this);
+    m_slideshow->setInterval(5 * 60 * 1000);
+    connect(m_slideshow, &QTimer::timeout, this, &MainWindow::onNext);
+    connect(m_slideshowChk, &QCheckBox::toggled, this, [this](bool on) {
+        if (on) {
+            // Save current states, then force both ON and lock them
+            m_savedFindAll = m_findAllChk->isChecked();
+            m_savedAutoMid = m_autoChk->isChecked();
+            m_findAllChk->setChecked(true);
+            m_autoChk->setChecked(true);
+            m_findAllChk->setEnabled(false);
+            m_autoChk->setEnabled(false);
+            if (m_solutions.size() > 1) m_slideshow->start();
+        } else {
+            // Restore previous states and unlock
+            m_slideshow->stop();
+            m_findAllChk->setEnabled(true);
+            m_autoChk->setEnabled(true);
+            m_findAllChk->setChecked(m_savedFindAll);
+            m_autoChk->setChecked(m_savedAutoMid);
+        }
+    });
+
     // ── Midnight auto-update timer ────────────────────────────────────────
     m_midnight = new QTimer(this);
     m_midnight->setSingleShot(true);
@@ -208,6 +245,9 @@ void MainWindow::buildUi()
     adjustSize();
     setFixedSize(sizeHint());
 
+    // Mark today on the calendar popup
+    updateTodayMarker();
+
     // Initial solve on startup
     scheduleSolve();
 }
@@ -227,9 +267,26 @@ void MainWindow::scheduleMidnight()
 
 void MainWindow::onMidnight()
 {
+    // Clear yesterday's marker, highlight new today
+    QCalendarWidget* cal = m_dateEdit->calendarWidget();
+    if (cal)
+        cal->setDateTextFormat(QDate::currentDate().addDays(-1), QTextCharFormat());
+    updateTodayMarker();
+
     if (m_autoChk->isChecked())
         m_dateEdit->setDate(QDate::currentDate()); // triggers dateChanged → scheduleSolve
     scheduleMidnight(); // arm for the following midnight
+}
+
+void MainWindow::updateTodayMarker()
+{
+    QCalendarWidget* cal = m_dateEdit->calendarWidget();
+    if (!cal) return;
+
+    QTextCharFormat fmt;
+    fmt.setFontWeight(QFont::Bold);
+    fmt.setBackground(QColor(255, 200, 50, 160));  // amber highlight
+    cal->setDateTextFormat(QDate::currentDate(), fmt);
 }
 
 void MainWindow::onTriggerSolve()
@@ -285,6 +342,9 @@ void MainWindow::onSolved()
         m_prevBtn->setEnabled(multi);
         m_nextBtn->setEnabled(multi);
         m_solLabel->setText(QString("Solution 1 / %1").arg(m_solutions.size()));
+        // (Re)start slideshow if enabled and multiple solutions available
+        if (m_slideshowChk->isChecked() && multi) m_slideshow->start();
+        else                                       m_slideshow->stop();
     } else {
         m_solLabel->setText("No solution found");
         m_board->setDate(date);
@@ -309,14 +369,17 @@ void MainWindow::onPrev()
     showSolution(m_idx);
     m_solLabel->setText(
         QString("Solution %1 / %2").arg(m_idx+1).arg(m_solutions.size()));
+    if (m_slideshow->isActive()) m_slideshow->start(); // reset interval
 }
 
 void MainWindow::onNext()
 {
+    if (m_solutions.isEmpty()) return;
     m_idx = (m_idx + 1) % m_solutions.size();
     showSolution(m_idx);
     m_solLabel->setText(
         QString("Solution %1 / %2").arg(m_idx+1).arg(m_solutions.size()));
+    if (m_slideshow->isActive()) m_slideshow->start(); // reset interval
 }
 
 #include "mainwindow.moc"

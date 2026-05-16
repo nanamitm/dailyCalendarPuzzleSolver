@@ -30,11 +30,13 @@ private:
     void scheduleSolve();    // restart debounce timer
     void scheduleMidnight(); // arm the midnight timer
     void showSolution(int idx);
+    void updateTodayMarker(); // highlight today on the calendar popup
 
     // ── Widgets ──────────────────────────────────────────────────────────
     QDateEdit*    m_dateEdit   = nullptr;
-    QCheckBox*    m_findAllChk  = nullptr;
-    QCheckBox*    m_autoChk     = nullptr;
+    QCheckBox*    m_findAllChk   = nullptr;
+    QCheckBox*    m_autoChk      = nullptr;
+    QCheckBox*    m_slideshowChk = nullptr;
     BoardWidget*  m_board      = nullptr;
     QPushButton*  m_prevBtn    = nullptr;
     QPushButton*  m_nextBtn    = nullptr;
@@ -45,6 +47,9 @@ private:
     QTimer*            m_debounce    = nullptr;
     QTimer*            m_tickTimer   = nullptr;  // updates overlay every 100 ms
     QTimer*            m_midnight    = nullptr;  // fires once at next midnight
+    QTimer*            m_slideshow      = nullptr;  // advances solution every 5 min
+    bool               m_savedFindAll   = false;    // state before slideshow locked it
+    bool               m_savedAutoMid   = false;
     QElapsedTimer      m_elapsed;
     SolverWorker*      m_worker     = nullptr;
     SolveOverlay*      m_overlay    = nullptr;
