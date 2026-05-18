@@ -24,6 +24,7 @@ private slots:
     void onSolved();
     void onPrev();
     void onNext();
+    void onSlideshowTick();  // called by slideshow timer (LCG advance)
     void onMidnight();       // called when date changes at midnight
 
 private:
@@ -32,12 +33,15 @@ private:
     void scheduleMidnight(); // arm the midnight timer
     void showSolution(int idx);
     void updateTodayMarker(); // highlight today on the calendar popup
+    void initLcg();          // initialise LCG state for current solution count
+    int  nextLcgIdx();       // advance LCG and return next solution index
 
     // ── Widgets ──────────────────────────────────────────────────────────
     QDateEdit*    m_dateEdit   = nullptr;
     QPushButton*  m_todayBtn   = nullptr;
     QCheckBox*    m_findAllChk   = nullptr;
     QAction*      m_autoAct      = nullptr;   // in gear menu
+    QAction*      m_onTopAct     = nullptr;   // in gear menu
     QAction*      m_slideshowAct = nullptr;   // in gear menu
     BoardWidget*  m_board      = nullptr;
     QPushButton*  m_prevBtn    = nullptr;
@@ -57,4 +61,6 @@ private:
     SolveOverlay*      m_overlay    = nullptr;
     QVector<Board>     m_solutions;
     int                m_idx        = 0;
+    quint32            m_lcgState   = 0;  // current LCG value (= current index)
+    quint32            m_lcgM       = 1;  // LCG modulus (next power of 2 >= N)
 };

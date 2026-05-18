@@ -96,6 +96,7 @@ MainWindow::~MainWindow()
     bool slideshowOn = m_slideshowAct->isChecked();
     s.setValue("findAll",      slideshowOn ? m_savedFindAll : m_findAllChk->isChecked());
     s.setValue("autoMidnight", slideshowOn ? m_savedAutoMid : m_autoAct->isChecked());
+    s.setValue("alwaysOnTop",  m_onTopAct->isChecked());
     s.setValue("slideshow",    slideshowOn);
 
     if (m_worker) { m_worker->quit(); m_worker->wait(); }
@@ -154,12 +155,21 @@ void MainWindow::buildUi()
 
     auto* gearMenu = new QMenu(this);
     m_autoAct      = gearMenu->addAction("Auto-update at midnight");
+    m_onTopAct     = gearMenu->addAction("Always on top");
     m_slideshowAct = gearMenu->addAction("Slideshow (5 min)");
     m_autoAct->setCheckable(true);
+    m_onTopAct->setCheckable(true);
     m_slideshowAct->setCheckable(true);
 
     connect(gearBtn, &QPushButton::clicked, this, [this, gearBtn, gearMenu]() {
         gearMenu->exec(gearBtn->mapToGlobal(gearBtn->rect().bottomLeft()));
+    });
+    connect(m_onTopAct, &QAction::toggled, this, [this](bool on) {
+        Qt::WindowFlags flags = windowFlags();
+        if (on) flags |=  Qt::WindowStaysOnTopHint;
+        else    flags &= ~Qt::WindowStaysOnTopHint;
+        setWindowFlags(flags);
+        show();
     });
 
     // ── Restore saved checkbox states ─────────────────────────────────────
@@ -170,6 +180,7 @@ void MainWindow::buildUi()
     m_savedAutoMid = s.value("autoMidnight", false).toBool();
     m_findAllChk->setChecked(m_savedFindAll);
     m_autoAct->setChecked(m_savedAutoMid);
+    m_onTopAct->setChecked(s.value("alwaysOnTop", false).toBool());
     m_slideshowAct->setChecked(s.value("slideshow", false).toBool());
     vbox->addLayout(topRow);
 
@@ -211,10 +222,10 @@ void MainWindow::buildUi()
         overlay->updateTime(m_elapsed.elapsed());
     });
 
-    // ── Slideshow timer (advances solution every 5 minutes) ──────────────
+    // ── Slideshow timer (advances solution every 5 minutes via LCG) ──────
     m_slideshow = new QTimer(this);
     m_slideshow->setInterval(5 * 60 * 1000);
-    connect(m_slideshow, &QTimer::timeout, this, &MainWindow::onNext);
+    connect(m_slideshow, &QTimer::timeout, this, &MainWindow::onSlideshowTick);
     connect(m_slideshowAct, &QAction::toggled, this, [this](bool on) {
         if (on) {
             m_savedFindAll = m_findAllChk->isChecked();
@@ -223,7 +234,7 @@ void MainWindow::buildUi()
             m_autoAct->setChecked(true);
             m_findAllChk->setEnabled(false);
             m_autoAct->setEnabled(false);
-            if (m_solutions.size() > 1) m_slideshow->start();
+            if (m_solutions.size() > 1) { initLcg(); m_slideshow->start(); }
         } else {
             m_slideshow->stop();
             m_findAllChk->setEnabled(true);
@@ -259,6 +270,12 @@ void MainWindow::buildUi()
 
     adjustSize();
     setFixedSize(sizeHint());
+
+    // Apply always-on-top if it was saved as ON
+    if (m_onTopAct->isChecked()) {
+        setWindowFlags(windowFlags() | Qt::WindowStaysOnTopHint);
+        // show() will be called later by the initial solve; no need here
+    }
 
     // If slideshow was ON when saved, the toggled signal wasn't connected
     // during QSettings restore — apply the lock state explicitly now
@@ -373,8 +390,8 @@ void MainWindow::onSolved()
         m_nextBtn->setEnabled(multi);
         m_solLabel->setText(QString("Solution 1 / %1").arg(m_solutions.size()));
         // (Re)start slideshow if enabled and multiple solutions available
-        if (m_slideshowAct->isChecked() && multi) m_slideshow->start();
-        else                                       m_slideshow->stop();
+        if (m_slideshowAct->isChecked() && multi) { initLcg(); m_slideshow->start(); }
+        else                                        m_slideshow->stop();
     } else {
         m_solLabel->setText("No solution found");
         m_board->setDate(date);
@@ -400,6 +417,7 @@ void MainWindow::onPrev()
     showSolution(m_idx);
     m_solLabel->setText(
         QString("Solution %1 / %2").arg(m_idx+1).arg(m_solutions.size()));
+    m_lcgState = (quint32)m_idx; // resume LCG from current position
     if (m_slideshow->isActive()) m_slideshow->start(); // reset interval
 }
 
@@ -410,7 +428,36 @@ void MainWindow::onNext()
     showSolution(m_idx);
     m_solLabel->setText(
         QString("Solution %1 / %2").arg(m_idx+1).arg(m_solutions.size()));
+    m_lcgState = (quint32)m_idx; // resume LCG from current position
     if (m_slideshow->isActive()) m_slideshow->start(); // reset interval
+}
+
+void MainWindow::onSlideshowTick()
+{
+    if (m_solutions.isEmpty()) return;
+    m_idx = nextLcgIdx();
+    showSolution(m_idx);
+    m_solLabel->setText(
+        QString("Solution %1 / %2").arg(m_idx+1).arg(m_solutions.size()));
+}
+
+void MainWindow::initLcg()
+{
+    // m = smallest power of 2 >= solution count; ensures full-period LCG
+    quint32 m = 1;
+    while (m < (quint32)m_solutions.size()) m <<= 1;
+    m_lcgM     = m;
+    m_lcgState = (quint32)m_idx; // start from whichever solution is currently shown
+}
+
+int MainWindow::nextLcgIdx()
+{
+    // X_{n+1} = (5 * X_n + 1) % m  satisfies Hull-Dobell for any power-of-2 m
+    int n = m_solutions.size();
+    do {
+        m_lcgState = (5 * m_lcgState + 1) % m_lcgM;
+    } while ((int)m_lcgState >= n);
+    return (int)m_lcgState;
 }
 
 #include "mainwindow.moc"
