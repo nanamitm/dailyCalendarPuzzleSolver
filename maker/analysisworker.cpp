@@ -4,6 +4,7 @@
 #include <vector>
 #include <atomic>
 #ifdef Q_OS_WIN
+#  define NOMINMAX   // prevent windows.h from defining min/max macros
 #  include <windows.h>
 #elif defined(Q_OS_LINUX)
 #  include <unistd.h>
