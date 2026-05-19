@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <atomic>
+#include <QString>
 
 // ── Board array dimensions ─────────────────────────────────────────────────
 constexpr int BXL  = 13;   // total X length (with padding)
@@ -72,3 +73,22 @@ struct SolverOutput {
 // cancelled: set to true from another thread to abort the search early
 SolverOutput SolveDate(int weekday, int day, int month, bool findAll,
                         std::atomic<bool>& cancelled);
+
+// ── Custom piece set (loaded from a PuzzleMaker JSON file) ────────────────────
+struct LoadedPieceSet {
+    QString           description;  // "3×4 + 7×5" etc.
+    QString           filePath;     // source JSON path (for QSettings persistence)
+    bool              bothSides = true;
+    std::vector<Piece> pieces;      // owned Piece objects (computed transforms)
+};
+
+// Parse a JSON file produced by PuzzleMaker and fill `out`.
+// Returns false and sets `error` on failure.
+bool loadPieceSetFromJson(const QString& path,
+                           LoadedPieceSet& out,
+                           QString& error);
+
+// Solve using a custom piece set instead of the hardcoded default.
+SolverOutput SolveDateCustom(int weekday, int day, int month, bool findAll,
+                              const LoadedPieceSet& pset,
+                              std::atomic<bool>& cancelled);

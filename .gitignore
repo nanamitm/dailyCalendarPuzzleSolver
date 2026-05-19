@@ -1,5 +1,10 @@
 # C++ build
 gui_cpp/build/
+build-maker/
+build-solver/
+
+# Claude Code
+.claude/
 
 # Visual Studio
 .vs/

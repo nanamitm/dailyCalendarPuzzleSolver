@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  # ── GUI + C++ CUI (per platform) ─────────────────────────────────────────
+  # ── GUI (Solver + Maker) + C++ CUI  (per platform) ───────────────────────────
   build:
     strategy:
       fail-fast: false
@@ -51,14 +51,21 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      # ── Build Qt GUI ──────────────────────────────────────────────────
-      - name: Configure GUI
-        run: cmake -B build -S gui_cpp -G Ninja -DCMAKE_BUILD_TYPE=Release
+      # ── Build Solver GUI ──────────────────────────────────────────────────
+      - name: Configure Solver GUI
+        run: cmake -B build-solver -S gui_cpp -G Ninja -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build GUI
-        run: cmake --build build --parallel
+      - name: Build Solver GUI
+        run: cmake --build build-solver --parallel
 
-      # ── Build C++ CUI ─────────────────────────────────────────────────
+      # ── Build Maker GUI ───────────────────────────────────────────────────
+      - name: Configure Maker GUI
+        run: cmake -B build-maker -S maker -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Maker GUI
+        run: cmake --build build-maker --parallel
+
+      # ── Build C++ CUI ─────────────────────────────────────────────────────
       - name: Build CUI (Windows)
         if: runner.os == 'Windows'
         shell: cmd
@@ -72,86 +79,126 @@ jobs:
           g++ -std=c++11 -O2 -o PuzzleSolverCUI \
               cpp/poodlepuzzleDailyCalendarSolver.cpp
 
-      # ── Package: Windows ──────────────────────────────────────────────
+      # ── Package: Windows ──────────────────────────────────────────────────
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "dev" }
-          $deploy = "deploy"
-          New-Item -ItemType Directory -Path $deploy | Out-Null
-          Copy-Item build\PuzzleSolverGUI.exe $deploy\
+
+          # --- Solver ---
+          $sd = "deploy-solver"
+          New-Item -ItemType Directory -Path $sd | Out-Null
+          Copy-Item build-solver\PuzzleSolverGUI.exe $sd\
           windeployqt --release `
-            --no-compiler-runtime `
-            --no-translations `
-            --no-opengl-sw `
-            --no-system-d3d-compiler `
-            "$deploy\PuzzleSolverGUI.exe"
-          Remove-Item -Recurse -Force "$deploy\imageformats" -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force "$deploy\iconengines"  -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force "$deploy\tls"          -ErrorAction SilentlyContinue
-          Copy-Item PuzzleSolverCUI.exe $deploy\
-          Compress-Archive -Path "$deploy\*" `
+            --no-compiler-runtime --no-translations `
+            --no-opengl-sw --no-system-d3d-compiler `
+            "$sd\PuzzleSolverGUI.exe"
+          foreach ($d in @("imageformats","iconengines","tls")) {
+            Remove-Item -Recurse -Force "$sd\$d" -ErrorAction SilentlyContinue
+          }
+          Copy-Item PuzzleSolverCUI.exe $sd\
+          Compress-Archive -Path "$sd\*" `
             -DestinationPath "PuzzleSolver-$tag-windows-x64.zip"
 
-      # ── Package: Linux x64 → AppImage + CUI binary ───────────────────
-      - name: Package AppImage (Linux x64)
+          # --- Maker ---
+          $md = "deploy-maker"
+          New-Item -ItemType Directory -Path $md | Out-Null
+          Copy-Item build-maker\PuzzleMakerGUI.exe $md\
+          windeployqt --release `
+            --no-compiler-runtime --no-translations `
+            --no-opengl-sw --no-system-d3d-compiler `
+            "$md\PuzzleMakerGUI.exe"
+          foreach ($d in @("imageformats","iconengines","tls")) {
+            Remove-Item -Recurse -Force "$md\$d" -ErrorAction SilentlyContinue
+          }
+          New-Item -ItemType Directory -Path "$md\pieces" | Out-Null
+          Compress-Archive -Path "$md\*" `
+            -DestinationPath "PuzzleMaker-$tag-windows-x64.zip"
+
+      # ── Package: Linux x64 → AppImage ────────────────────────────────────
+      - name: Download linuxdeploy (Linux x64)
         if: matrix.artifact == 'linux-x64'
         run: |
-          tag="${GITHUB_REF_NAME:-dev}"
-
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
 
-          mkdir -p AppDir/usr/bin \
-                   AppDir/usr/share/applications \
-                   AppDir/usr/share/icons/hicolor/256x256/apps
-
-          cp build/PuzzleSolverGUI AppDir/usr/bin/
-          cp gui_cpp/puzzlesolver.desktop \
-             AppDir/usr/share/applications/
-
+      - name: Package Solver AppImage (Linux x64)
+        if: matrix.artifact == 'linux-x64'
+        run: |
+          tag="${GITHUB_REF_NAME:-dev}"
+          mkdir -p AppDir-solver/usr/bin \
+                   AppDir-solver/usr/share/applications \
+                   AppDir-solver/usr/share/icons/hicolor/256x256/apps
+          cp build-solver/PuzzleSolverGUI AppDir-solver/usr/bin/
+          cp gui_cpp/puzzlesolver.desktop  AppDir-solver/usr/share/applications/
           convert img/poodlepuzzleDailyCalendarPuzzle.jpeg \
                   -resize 256x256 \
-                  AppDir/usr/share/icons/hicolor/256x256/apps/puzzlesolver.png
-
+                  AppDir-solver/usr/share/icons/hicolor/256x256/apps/puzzlesolver.png
           export QMAKE=$(which qmake6)
           export QML_SOURCES_PATHS=.
           ARCH=x86_64 ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
-            --appdir AppDir \
-            --plugin qt \
-            --output appimage
+            --appdir AppDir-solver --plugin qt --output appimage
+          mv *-x86_64.AppImage "PuzzleSolver-${tag}-linux-x64.AppImage"
+          cp PuzzleSolverCUI "PuzzleSolver-${tag}-linux-x64-cui"
 
-          appimg=$(find . -maxdepth 1 -name "*.AppImage" | head -1)
-          mv "$appimg" "PuzzleSolver-${tag}-linux-x64.AppImage"
-          cp PuzzleSolverCUI  "PuzzleSolver-${tag}-linux-x64-cui"
+      - name: Package Maker AppImage (Linux x64)
+        if: matrix.artifact == 'linux-x64'
+        run: |
+          tag="${GITHUB_REF_NAME:-dev}"
+          mkdir -p AppDir-maker/usr/bin \
+                   AppDir-maker/usr/share/applications \
+                   AppDir-maker/usr/share/icons/hicolor/256x256/apps
+          cp build-maker/PuzzleMakerGUI AppDir-maker/usr/bin/
+          cp maker/puzzlemaker.desktop   AppDir-maker/usr/share/applications/
+          cp maker/icon_maker.png \
+             AppDir-maker/usr/share/icons/hicolor/256x256/apps/puzzlemaker.png
+          mkdir -p AppDir-maker/usr/bin/pieces
+          export QMAKE=$(which qmake6)
+          export QML_SOURCES_PATHS=.
+          ARCH=x86_64 ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
+            --appdir AppDir-maker --plugin qt --output appimage
+          mv *-x86_64.AppImage "PuzzleMaker-${tag}-linux-x64.AppImage"
 
-      # ── Package: Linux ARM64 → tar.gz (requires Qt6 on target) ───────
-      - name: Package tar.gz (Linux ARM64)
+      # ── Package: Linux ARM64 → tar.gz ─────────────────────────────────────
+      - name: Package (Linux ARM64)
         if: matrix.artifact == 'linux-arm64'
         run: |
           tag="${GITHUB_REF_NAME:-dev}"
+
+          # Solver
           name="PuzzleSolver-${tag}-linux-arm64"
           mkdir "$name"
-          cp build/PuzzleSolverGUI "$name/"
-          cp PuzzleSolverCUI       "$name/"
+          cp build-solver/PuzzleSolverGUI "$name/"
+          cp PuzzleSolverCUI              "$name/"
           tar -czf "${name}.tar.gz" "$name"
+
+          # Maker
+          mname="PuzzleMaker-${tag}-linux-arm64"
+          mkdir "$mname"
+          mkdir "$mname/pieces"
+          cp build-maker/PuzzleMakerGUI "$mname/"
+          tar -czf "${mname}.tar.gz" "$mname"
 
       - name: Upload to Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: PuzzleSolver-*
+          files: |
+            PuzzleSolver-*
+            PuzzleMaker-*
 
       - name: Upload artifact
         if: "!startsWith(github.ref, 'refs/tags/')"
         uses: actions/upload-artifact@v4
         with:
-          name: PuzzleSolver-${{ matrix.artifact }}
-          path: PuzzleSolver-*
+          name: ${{ matrix.artifact }}
+          path: |
+            PuzzleSolver-*
+            PuzzleMaker-*
 
-  # ── Python CUI (platform-independent zip) ────────────────────────────────
+  # ── Python CUI (platform-independent zip) ────────────────────────────────────
   python-cui:
     runs-on: ubuntu-latest
 
@@ -173,5 +220,5 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/')"
         uses: actions/upload-artifact@v4
         with:
-          name: PuzzleSolver-python-cui
+          name: python-cui
           path: PuzzleSolver-*-python-cui.zip

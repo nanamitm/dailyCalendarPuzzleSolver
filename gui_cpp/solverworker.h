@@ -10,8 +10,10 @@ public:
     explicit SolverWorker(QObject* parent = nullptr) : QThread(parent) {}
 
     // Set before calling start()
-    QDate date;
-    bool  findAll = false;
+    QDate          date;
+    bool           findAll        = false;
+    bool           useCustomPieces = false;
+    LoadedPieceSet customPieceSet;  // deep copy – safe to write before start()
 
     // Read after solved() signal is received
     SolverOutput result;

@@ -3,6 +3,7 @@
 #include <QDateEdit>
 #include <QPushButton>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QAction>
 #include <QLabel>
 #include <QTimer>
@@ -20,47 +21,56 @@ public:
     ~MainWindow() override;
 
 private slots:
-    void onTriggerSolve();   // called by debounce timer
+    void onTriggerSolve();
     void onSolved();
     void onPrev();
     void onNext();
-    void onSlideshowTick();  // called by slideshow timer (LCG advance)
-    void onMidnight();       // called when date changes at midnight
+    void onSlideshowTick();
+    void onMidnight();
+    void onRefreshPieceSets();  // re-scan the pieces/ subfolder
 
 private:
     void buildUi();
-    void scheduleSolve();    // restart debounce timer
-    void scheduleMidnight(); // arm the midnight timer
+    void scheduleSolve();
+    void scheduleMidnight();
     void showSolution(int idx);
-    void updateTodayMarker(); // highlight today on the calendar popup
-    void initLcg();          // initialise LCG state for current solution count
-    int  nextLcgIdx();       // advance LCG and return next solution index
+    void updateTodayMarker();
+    void initLcg();
+    int  nextLcgIdx();
+    void scanPieceSets();       // load all *.json from pieces/ subfolder
+    void rebuildPieceCombo();   // refresh combo from m_loadedSets
 
-    // ── Widgets ──────────────────────────────────────────────────────────
-    QDateEdit*    m_dateEdit   = nullptr;
-    QPushButton*  m_todayBtn   = nullptr;
+    // ── Widgets ───────────────────────────────────────────────────────────────
+    QDateEdit*    m_dateEdit     = nullptr;
+    QPushButton*  m_todayBtn     = nullptr;
     QCheckBox*    m_findAllChk   = nullptr;
-    QAction*      m_autoAct      = nullptr;   // in gear menu
-    QAction*      m_onTopAct     = nullptr;   // in gear menu
-    QAction*      m_slideshowAct = nullptr;   // in gear menu
-    BoardWidget*  m_board      = nullptr;
-    QPushButton*  m_prevBtn    = nullptr;
-    QPushButton*  m_nextBtn    = nullptr;
-    QLabel*       m_solLabel   = nullptr;
-    QLabel*       m_statusLbl  = nullptr;
+    QAction*      m_autoAct      = nullptr;
+    QAction*      m_onTopAct     = nullptr;
+    QAction*      m_slideshowAct = nullptr;
+    BoardWidget*  m_board        = nullptr;
+    QPushButton*  m_prevBtn      = nullptr;
+    QPushButton*  m_nextBtn      = nullptr;
+    QLabel*       m_solLabel     = nullptr;
+    QLabel*       m_statusLbl    = nullptr;
 
-    // ── State ─────────────────────────────────────────────────────────────
+    // ── Piece set selector ────────────────────────────────────────────────────
+    QComboBox*    m_pieceCombo    = nullptr;
+    QPushButton*  m_refreshBtn    = nullptr;
+
+    // ── State ─────────────────────────────────────────────────────────────────
     QTimer*            m_debounce    = nullptr;
-    QTimer*            m_tickTimer   = nullptr;  // updates overlay every 100 ms
-    QTimer*            m_midnight    = nullptr;  // fires once at next midnight
-    QTimer*            m_slideshow      = nullptr;  // advances solution every 5 min
-    bool               m_savedFindAll   = false;    // state before slideshow locked it
+    QTimer*            m_tickTimer   = nullptr;
+    QTimer*            m_midnight    = nullptr;
+    QTimer*            m_slideshow   = nullptr;
+    bool               m_savedFindAll   = false;
     bool               m_savedAutoMid   = false;
     QElapsedTimer      m_elapsed;
     SolverWorker*      m_worker     = nullptr;
     SolveOverlay*      m_overlay    = nullptr;
     QVector<Board>     m_solutions;
     int                m_idx        = 0;
-    quint32            m_lcgState   = 0;  // current LCG value (= current index)
-    quint32            m_lcgM       = 1;  // LCG modulus (next power of 2 >= N)
+    quint32            m_lcgState   = 0;
+    quint32            m_lcgM       = 1;
+
+    std::vector<LoadedPieceSet> m_loadedSets;
 };

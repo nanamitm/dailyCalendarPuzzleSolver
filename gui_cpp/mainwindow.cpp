@@ -7,6 +7,9 @@
 #include <QCalendarWidget>
 #include <QTextCharFormat>
 #include <QMenu>
+#include <QDir>
+#include <QCoreApplication>
+#include <QToolTip>
 
 // ── Solving overlay ────────────────────────────────────────────────────────
 class SolveOverlay : public QWidget {
@@ -184,6 +187,20 @@ void MainWindow::buildUi()
     m_slideshowAct->setChecked(s.value("slideshow", false).toBool());
     vbox->addLayout(topRow);
 
+    // ── Piece set selector ────────────────────────────────────────────────
+    // JSON files are loaded from <exe_dir>/pieces/  (created automatically)
+    auto* pieceRow = new QHBoxLayout;
+    pieceRow->addWidget(new QLabel("ピースセット:"));
+    m_pieceCombo = new QComboBox;
+    m_pieceCombo->addItem("デフォルト (元の10ピース)");
+    m_pieceCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    pieceRow->addWidget(m_pieceCombo, 1);
+    m_refreshBtn = new QPushButton("↺");
+    m_refreshBtn->setFixedWidth(32);
+    m_refreshBtn->setToolTip("pieces/ フォルダを再スキャン");
+    pieceRow->addWidget(m_refreshBtn);
+    vbox->addLayout(pieceRow);
+
     // ── Board ─────────────────────────────────────────────────────────────
     m_board = new BoardWidget(this);
     m_board->setDate(QDate::currentDate());
@@ -257,6 +274,10 @@ void MainWindow::buildUi()
     connect(m_debounce, &QTimer::timeout, this, &MainWindow::onTriggerSolve);
 
     // ── Connections ───────────────────────────────────────────────────────
+    connect(m_refreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshPieceSets);
+    connect(m_pieceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int) { scheduleSolve(); });
+
     connect(m_prevBtn,    &QPushButton::clicked,        this, &MainWindow::onPrev);
     connect(m_nextBtn,    &QPushButton::clicked,        this, &MainWindow::onNext);
     connect(m_dateEdit,   &QDateEdit::dateChanged,      this, [this](QDate d) {
@@ -291,6 +312,9 @@ void MainWindow::buildUi()
 
     // Mark today on the calendar popup
     updateTodayMarker();
+
+    // ── Initial scan of pieces/ subfolder ────────────────────────────────────
+    scanPieceSets();
 
     // Initial solve on startup
     scheduleSolve();
@@ -350,6 +374,14 @@ void MainWindow::onTriggerSolve()
     m_worker = new SolverWorker(this);
     m_worker->date    = m_dateEdit->date();
     m_worker->findAll = m_findAllChk->isChecked();
+
+    int pieceIdx = m_pieceCombo->currentIndex();
+    if (pieceIdx > 0 && pieceIdx - 1 < (int)m_loadedSets.size()) {
+        m_worker->useCustomPieces = true;
+        m_worker->customPieceSet  = m_loadedSets[pieceIdx - 1]; // deep copy
+    } else {
+        m_worker->useCustomPieces = false;
+    }
 
     m_solutions.clear();
     m_idx = 0;
@@ -458,6 +490,63 @@ int MainWindow::nextLcgIdx()
         m_lcgState = (5 * m_lcgState + 1) % m_lcgM;
     } while ((int)m_lcgState >= n);
     return (int)m_lcgState;
+}
+
+// ── Piece set management ───────────────────────────────────────────────────────
+
+static QString piecesFolder()
+{
+    return QCoreApplication::applicationDirPath() + "/pieces";
+}
+
+void MainWindow::scanPieceSets()
+{
+    QDir dir(piecesFolder());
+    dir.mkpath(".");   // create pieces/ if it doesn't exist
+
+    m_loadedSets.clear();
+    const auto files = dir.entryInfoList({"*.json"}, QDir::Files, QDir::Name);
+    for (const auto& fi : files) {
+        LoadedPieceSet set;
+        QString err;
+        if (loadPieceSetFromJson(fi.absoluteFilePath(), set, err))
+            m_loadedSets.push_back(std::move(set));
+        // silently skip unreadable files
+    }
+    rebuildPieceCombo();
+}
+
+void MainWindow::rebuildPieceCombo()
+{
+    int prev = m_pieceCombo->currentIndex();
+    m_pieceCombo->blockSignals(true);
+    m_pieceCombo->clear();
+    m_pieceCombo->addItem("デフォルト (元の10ピース)");
+    for (const auto& s : m_loadedSets) {
+        // Show description from JSON; fall back to filename
+        QFileInfo fi(s.filePath);
+        QString label = s.description.isEmpty() ? fi.baseName() : s.description;
+        m_pieceCombo->addItem(label);
+    }
+    int idx = qBound(0, prev, m_pieceCombo->count() - 1);
+    m_pieceCombo->setCurrentIndex(idx);
+    m_pieceCombo->blockSignals(false);
+
+    // Show pieces/ path in the combo tooltip
+    m_pieceCombo->setToolTip(
+        QString("JSONファイルの配置フォルダ:\n%1").arg(piecesFolder()));
+
+    setFixedSize(sizeHint());
+}
+
+void MainWindow::onRefreshPieceSets()
+{
+    int prev = m_pieceCombo->currentIndex();
+    scanPieceSets();
+    // Restore previous selection if still valid
+    if (prev < m_pieceCombo->count())
+        m_pieceCombo->setCurrentIndex(prev);
+    scheduleSolve();
 }
 
 #include "mainwindow.moc"

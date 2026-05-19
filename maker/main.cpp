@@ -5,10 +5,10 @@
 int main(int argc, char* argv[])
 {
     QApplication app(argc, argv);
-    app.setOrganizationName("nanamitm");
-    app.setApplicationName("PuzzleSolverGUI");
+    app.setOrganizationName("puzzlemaker");
+    app.setApplicationName("PuzzleMakerGUI");
     app.setStyle("Fusion");
-    app.setWindowIcon(QIcon(":/icon_solver.ico"));
+    app.setWindowIcon(QIcon(":/icon_maker.png"));
 
     MainWindow w;
     w.show();

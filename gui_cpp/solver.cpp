@@ -1,6 +1,13 @@
 #include "solver.h"
 #include <chrono>
 #include <cstring>
+#include <set>
+#include <climits>
+#include <utility>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 // ── Piece ──────────────────────────────────────────────────────────────────
 
@@ -301,6 +308,153 @@ SolverOutput SolveDate(int weekday, int day, int month, bool findAll,
         out = solvePhase(weekday, day, month, findAll, true, true, cancelled);
     }
 
+    out.elapsedMs =
+        std::chrono::duration<double, std::milli>(clock::now() - t0).count();
+    return out;
+}
+
+// ── Custom piece set: transform computation ────────────────────────────────────
+
+// Apply transform t to vector v (same convention as Piece::transform in solver)
+static Vect applyTransVect(Vect v, Trans t)
+{
+    switch (t) {
+        case up:        return { v.x,  v.y};
+        case right:     return { v.y, -v.x};
+        case down:      return {-v.x, -v.y};
+        case left:      return {-v.y,  v.x};
+        case upBack:    return {-v.x,  v.y};
+        case rightBack: return { v.y,  v.x};
+        case downBack:  return { v.x, -v.y};
+        case leftBack:  return {-v.y, -v.x};
+    }
+    return v;
+}
+
+// Walk a vector chain under transform t, return normalized cell set
+static std::set<std::pair<int,int>> chainToCells(const std::vector<Vect>& vecs, Trans t)
+{
+    std::set<std::pair<int,int>> cells;
+    int cx = 0, cy = 0;
+    cells.insert({cx, cy});
+    for (const auto& v : vecs) {
+        Vect tv = applyTransVect(v, t);
+        cx += tv.x; cy += tv.y;
+        cells.insert({cx, cy});
+    }
+    // Normalize: translate so min-x=0, min-y=0
+    int minX = INT_MAX, minY = INT_MAX;
+    for (auto [x, y] : cells) { minX = std::min(minX, x); minY = std::min(minY, y); }
+    std::set<std::pair<int,int>> norm;
+    for (auto [x, y] : cells) norm.insert({x - minX, y - minY});
+    return norm;
+}
+
+// Return the subset of 8 transforms that produce distinct cell sets
+static std::vector<Trans> computeRelevantTrans(const std::vector<Vect>& vecs,
+                                                bool bothSides)
+{
+    const Trans allTrans[] = {
+        up, right, down, left, upBack, leftBack, downBack, rightBack
+    };
+    int count = bothSides ? 8 : 4;
+
+    std::vector<std::set<std::pair<int,int>>> seen;
+    std::vector<Trans> relevant;
+    for (int i = 0; i < count; ++i) {
+        auto cells = chainToCells(vecs, allTrans[i]);
+        bool found = false;
+        for (const auto& s : seen) if (s == cells) { found = true; break; }
+        if (!found) { seen.push_back(cells); relevant.push_back(allTrans[i]); }
+    }
+    return relevant;
+}
+
+// ── loadPieceSetFromJson ───────────────────────────────────────────────────────
+
+bool loadPieceSetFromJson(const QString& path, LoadedPieceSet& out, QString& error)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        error = "ファイルを開けません: " + f.errorString();
+        return false;
+    }
+    QJsonParseError parseErr;
+    auto doc = QJsonDocument::fromJson(f.readAll(), &parseErr);
+    if (doc.isNull()) {
+        error = "JSONパースエラー: " + parseErr.errorString();
+        return false;
+    }
+
+    auto root    = doc.object();
+    out.description = root["description"].toString();
+    out.filePath    = path;
+    out.bothSides   = root["bothSides"].toBool(true);
+    out.pieces.clear();
+
+    auto piecesArr = root["pieces"].toArray();
+    if (piecesArr.isEmpty()) {
+        error = "pieces 配列が空です";
+        return false;
+    }
+
+    for (int pi = 0; pi < piecesArr.size(); ++pi) {
+        auto pobj    = piecesArr[pi].toObject();
+        auto vecsArr = pobj["vectors"].toArray();
+
+        std::vector<Vect> vecs;
+        vecs.reserve(vecsArr.size());
+        for (const auto& va : vecsArr) {
+            auto pair = va.toArray();
+            vecs.push_back({pair[0].toInt(), pair[1].toInt()});
+        }
+
+        auto relTrans = computeRelevantTrans(vecs, out.bothSides);
+        unsigned char val = static_cast<unsigned char>(pi + 1);
+
+        // Piece constructor copies the arrays, so local vectors are fine
+        out.pieces.emplace_back(
+            vecs.empty() ? nullptr : vecs.data(),
+            static_cast<int>(vecs.size()),
+            val,
+            relTrans.empty() ? nullptr : relTrans.data(),
+            static_cast<int>(relTrans.size()));
+    }
+    return true;
+}
+
+// ── SolveDateCustom ───────────────────────────────────────────────────────────
+
+SolverOutput SolveDateCustom(int weekday, int day, int month, bool findAll,
+                              const LoadedPieceSet& pset,
+                              std::atomic<bool>& cancelled)
+{
+    using clock = std::chrono::high_resolution_clock;
+    auto t0 = clock::now();
+
+    // Deep-copy pieces so Piece::transform doesn't pollute the shared set
+    std::vector<Piece> pieces = pset.pieces;
+    int n = static_cast<int>(pieces.size());
+    std::vector<Piece*> ptrs(n);
+    for (int i = 0; i < n; ++i) ptrs[i] = &pieces[i];
+
+    Board  puzzle(weekday, day, month);
+    Board* sols   = nullptr;
+    int    tries  = 0, plPcs = 0;
+    bool   keep   = true;
+
+    Solve(puzzle, ptrs.data(), n, &sols, &tries, &plPcs, !findAll, keep, cancelled);
+
+    SolverOutput out;
+    out.tries     = tries;
+    out.pcsPlaced = plPcs;
+    Board* cur = sols;
+    while (cur) {
+        out.solutions.push_back(*cur);
+        Board* nxt = cur->next;
+        delete cur;
+        cur = nxt;
+    }
     out.elapsedMs =
         std::chrono::duration<double, std::milli>(clock::now() - t0).count();
     return out;

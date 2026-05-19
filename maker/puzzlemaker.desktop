@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Calendar Puzzle Maker
+Exec=PuzzleMakerGUI
+Icon=puzzlemaker
+Type=Application
+Categories=Game;Utility;
+Comment=Discover alternative piece sets for the daily calendar puzzle
