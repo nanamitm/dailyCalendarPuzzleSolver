@@ -3,6 +3,8 @@
 #include <QList>
 #include <QStringList>
 #include <QVector>
+#include <QTimer>
+#include <QElapsedTimer>
 
 class QSpinBox;
 class QCheckBox;
@@ -95,6 +97,9 @@ private:
     SearchWorker*   m_worker         = nullptr;
     AnalysisWorker* m_analysisWorker = nullptr;
     bool            m_isPaused       = false;
+
+    QTimer*       m_searchElapsedTimer = nullptr;
+    QElapsedTimer m_searchElapsedClock;
 
     void setSearchRunning(bool running);
     void setAnalysisRunning(bool running);

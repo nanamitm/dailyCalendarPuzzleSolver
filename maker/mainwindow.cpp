@@ -245,6 +245,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     // ── Connections ───────────────────────────────────────────────────────────
     connect(m_saveJsonBtn,      &QPushButton::clicked, this, &MainWindow::onSaveJson);
     connect(m_startBtn,         &QPushButton::clicked, this, &MainWindow::onStart);
+
+    m_searchElapsedTimer = new QTimer(this);
+    m_searchElapsedTimer->setInterval(1000);
+    connect(m_searchElapsedTimer, &QTimer::timeout, this, [this]() {
+        m_lblElapsed->setText(formatTime(m_searchElapsedClock.elapsed() / 1000.0));
+    });
     connect(m_pauseBtn,         &QPushButton::clicked, this, &MainWindow::onPauseResume);
     connect(m_stopBtn,          &QPushButton::clicked, this, &MainWindow::onStop);
     connect(m_analysisStartBtn, &QPushButton::clicked, this, &MainWindow::onAnalysisStart);
@@ -302,6 +308,8 @@ void MainWindow::onStart()
     connect(m_worker, &SearchWorker::finished, m_worker, &QObject::deleteLater);
 
     setSearchRunning(true);
+    m_searchElapsedClock.start();
+    m_searchElapsedTimer->start();
     m_worker->start();
 }
 
@@ -366,6 +374,7 @@ void MainWindow::onSolutionFound(QStringList shapes, QString desc,
 
 void MainWindow::onSearchFinished(int total, double elapsedSec, bool wasCancelled)
 {
+    m_searchElapsedTimer->stop();
     setSearchRunning(false);
     m_isPaused = false;
     if (!wasCancelled) m_progressBar->setValue(10000);

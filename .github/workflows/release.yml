@@ -98,6 +98,9 @@ jobs:
             Remove-Item -Recurse -Force "$sd\$d" -ErrorAction SilentlyContinue
           }
           Copy-Item PuzzleSolverCUI.exe $sd\
+          if (Test-Path "gui_cpp\pieces") {
+            Copy-Item "gui_cpp\pieces" "$sd\pieces" -Recurse
+          }
           Compress-Archive -Path "$sd\*" `
             -DestinationPath "PuzzleSolver-$tag-windows-x64.zip"
 
@@ -138,6 +141,7 @@ jobs:
                   AppDir-solver/usr/share/icons/hicolor/256x256/apps/puzzlesolver.png
           export QMAKE=$(which qmake6)
           export QML_SOURCES_PATHS=.
+          [ -d gui_cpp/pieces ] && cp -r gui_cpp/pieces AppDir-solver/usr/bin/pieces
           ARCH=x86_64 ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
             --appdir AppDir-solver --plugin qt --output appimage
           # linuxdeploy names the AppImage from the desktop file; rename it
@@ -176,6 +180,7 @@ jobs:
           mkdir "$name"
           cp build-solver/PuzzleSolverGUI "$name/"
           cp PuzzleSolverCUI              "$name/"
+          [ -d gui_cpp/pieces ] && cp -r gui_cpp/pieces "$name/pieces"
           tar -czf "${name}.tar.gz" "$name"
 
           # Maker
