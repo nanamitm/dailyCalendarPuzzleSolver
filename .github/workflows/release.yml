@@ -278,38 +278,47 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/')"
         run: cmake --build build-android
 
-      - name: Build APK (release, signed)
+      - name: Build APK (release)
         if: startsWith(github.ref, 'refs/tags/')
-        env:
-          ANDROID_storeFile: ${{ runner.temp }}/keystore.jks
-          ANDROID_storePassword: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          ANDROID_keyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: cmake --build build-android
+        # Qt 6.9.x androiddeployqt exits 20 after Gradle succeeds (APK copy issue).
+        # Gradle still produces the APK; we ignore the exit code and sign separately.
+        run: cmake --build build-android || true
 
-      - name: Locate and rename APK
+      - name: Sign release APK with apksigner
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          tag="${GITHUB_REF_NAME:-dev}"
-          echo "Searching for APK..."
+          echo "All APKs found after build:"
           find build-android -name "*.apk" | sort
 
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            src=$(find build-android -name "*release*.apk" | grep -v unsigned | head -1)
-            [ -z "$src" ] && src=$(find build-android -name "*.apk" | head -1)
-            dest="PuzzleSolver-${tag}-android-arm64.apk"
-          else
-            src=$(find build-android -name "*debug*.apk" | head -1)
-            [ -z "$src" ] && src=$(find build-android -name "*.apk" | head -1)
-            dest="PuzzleSolver-${tag}-android-arm64-debug.apk"
+          # Find the release APK produced by Gradle (may be unsigned or signed)
+          src=$(find build-android/android-build/build/outputs/apk/release \
+                  -name "*.apk" 2>/dev/null | head -1)
+          if [ -z "$src" ]; then
+            src=$(find build-android -name "*release*.apk" 2>/dev/null | head -1)
           fi
-          echo "Using APK: $src → $dest"
-          cp "$src" "$dest"
+          echo "Signing: $src"
+
+          APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/36.0.0/apksigner"
+          "${APKSIGNER}" sign \
+            --ks "${{ runner.temp }}/keystore.jks" \
+            --ks-pass "pass:${{ secrets.ANDROID_STORE_PASSWORD }}" \
+            --ks-key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+            --key-pass "pass:${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            --out "PuzzleSolver-${{ github.ref_name }}-android-arm64.apk" \
+            "$src"
+
+      - name: Locate and rename debug APK
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: |
+          src=$(find build-android -name "*debug*.apk" | head -1)
+          [ -z "$src" ] && src=$(find build-android -name "*.apk" | head -1)
+          cp "$src" "PuzzleSolver-${GITHUB_REF_NAME:-dev}-android-arm64-debug.apk"
 
       - name: Upload to Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: PuzzleSolver-*-android-arm64.apk
+          files: PuzzleSolver-${{ github.ref_name }}-android-arm64.apk
 
       - name: Upload artifact
         if: "!startsWith(github.ref, 'refs/tags/')"
