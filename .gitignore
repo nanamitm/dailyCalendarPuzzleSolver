@@ -3,6 +3,14 @@ gui_cpp/build/
 build-maker/
 build-solver/
 
+# Android builds
+build-android/
+build-android-release/
+
+# Android signing — never commit these
+android-signing.properties
+keystore/
+
 # Claude Code
 .claude/
 
