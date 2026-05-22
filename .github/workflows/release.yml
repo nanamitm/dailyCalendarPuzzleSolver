@@ -225,13 +225,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Install Ninja & Android NDK
-        run: |
-          sudo apt-get install -y ninja-build
-          yes | sdkmanager \
-            "ndk;27.2.12479018" \
-            "platforms;android-36" \
-            "build-tools;36.0.0" 2>/dev/null || true
+      - name: Install Ninja
+        run: sudo apt-get install -y ninja-build
+
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            ndk;27.2.12479018
+            platforms;android-36
+            build-tools;36.0.0
 
       - name: Install Qt for Android (arm64-v8a + host desktop)
         uses: jurplel/install-qt-action@v4
@@ -257,11 +260,12 @@ jobs:
           NDK_ROOT="${ANDROID_SDK_ROOT}/ndk/27.2.12479018"
 
           cmake -S Android -B build-android -G Ninja -Wno-dev \
+            "-DCMAKE_MAKE_PROGRAM=$(which ninja)" \
             "-DCMAKE_TOOLCHAIN_FILE=${QT_ROOT_DIR}/lib/cmake/Qt6/qt.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=latest \
             "-DANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" \
-            "-DANDROID_NDK_ROOT=${NDK_ROOT}" \
+            "-DANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/27.2.12479018" \
             "-DQT_HOST_PATH=${QT_HOST_PATH}" \
             "-DCMAKE_BUILD_TYPE=${BUILD_TYPE}"
 
