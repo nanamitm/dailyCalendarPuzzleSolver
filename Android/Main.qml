@@ -17,8 +17,17 @@ ApplicationWindow {
     readonly property bool isDark: Qt.styleHints.colorScheme === Qt.ColorScheme.Dark
     Material.theme:  isDark ? Material.Dark  : Material.Light
     Material.accent: Material.Blue
+    // Warm-tinted dark (#12121E) instead of pure black; soft off-white for light
+    color: isDark ? "#12121E" : "#F5F5F5"
 
     SolverBackend { id: backend }
+
+    // ── Font ──────────────────────────────────────────────────────────────────
+    FontLoader {
+        id: notoSansJP
+        source: "qrc:/fonts/fonts/NotoSansJP.ttf"
+        onStatusChanged: if (status === FontLoader.Ready) root.font.family = notoSansJP.name
+    }
 
     // ── Piece set file picker ─────────────────────────────────────────────────
     FileDialog {
@@ -117,6 +126,37 @@ ApplicationWindow {
     property int curMonth: Qt.formatDate(new Date(), "M") * 1
     property int curDay:   Qt.formatDate(new Date(), "d") * 1
 
+    // Triggers date-label fade animation whenever the displayed date changes
+    readonly property string watchDate: curYear + "/" + curMonth + "/" + curDay
+    onWatchDateChanged: dateFadeAnim.restart()
+
+    // ── Splash screen state ───────────────────────────────────────────────────
+    property bool splashMinPassed: false   // 800ms minimum elapsed
+    property bool splashSolveDone: false   // first solve finished
+
+    function tryDismissSplash() {
+        if (splashMinPassed && splashSolveDone) splashFadeOut.start()
+    }
+
+    // Minimum display time
+    Timer {
+        id: splashMinTimer; interval: 800; running: true; repeat: false
+        onTriggered: { root.splashMinPassed = true; root.tryDismissSplash() }
+    }
+    // Safety: dismiss after 3 s even if solve never completes
+    Timer {
+        id: splashSafetyTimer; interval: 3000; running: true; repeat: false
+        onTriggered: { root.splashMinPassed = true; root.splashSolveDone = true; root.tryDismissSplash() }
+    }
+
+    property bool watchSolving: backend.solving
+    onWatchSolvingChanged: {
+        if (!backend.solving && !root.splashSolveDone) {
+            root.splashSolveDone = true
+            root.tryDismissSplash()
+        }
+    }
+
     readonly property bool isToday: {
         var d = new Date()
         return curYear === d.getFullYear() && curMonth === (d.getMonth() + 1) && curDay === d.getDate()
@@ -207,24 +247,38 @@ ApplicationWindow {
 
     // ── Main layout ───────────────────────────────────────────────────────────
     ColumnLayout {
-        anchors { fill: parent; margins: 8 }
-        spacing: 6
+        anchors.fill: parent
+        spacing: 0
 
-        // Single header row: date label + ⚙
-        RowLayout {
+        // ── Header bar ────────────────────────────────────────────────────────
+        Rectangle {
             Layout.fillWidth: true
-            spacing: 4
+            implicitHeight: headerRow.implicitHeight + 16
+            color: isDark ? "#1565C0" : "#1976D2"
 
-            // Balances the ⚙ button so the date label is truly centred
-            Item { implicitWidth: gearButton.width; implicitHeight: 1 }
+            RowLayout {
+                id: headerRow
+                anchors { fill: parent; margins: 8 }
+                spacing: 4
 
-            Label {
-                id: dateLabel
-                Layout.fillWidth: true
-                text: curDateStr()
-                horizontalAlignment: Text.AlignHCenter
-                font.pixelSize: 16
-                font.bold: true
+                // Balances the ⚙ button so the date label is truly centred
+                Item { implicitWidth: gearButton.width; implicitHeight: 1 }
+
+                Label {
+                    id: dateLabel
+                    Layout.fillWidth: true
+                    text: curDateStr()
+                    horizontalAlignment: Text.AlignHCenter
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: "white"
+
+                // Fade-in when date changes (triggered by root.onWatchDateChanged)
+                SequentialAnimation {
+                    id: dateFadeAnim
+                    NumberAnimation { target: dateLabel; property: "opacity"; to: 0.0; duration: 80 }
+                    NumberAnimation { target: dateLabel; property: "opacity"; to: 1.0; duration: 220; easing.type: Easing.OutCubic }
+                }
 
                 // Pulse feedback when long-pressing to go to today
                 SequentialAnimation {
@@ -277,6 +331,7 @@ ApplicationWindow {
                 text: "⚙"
                 flat: true
                 font.pixelSize: 20
+                Material.foreground: "white"
                 onClicked: settingsMenu.open()
 
                 Menu {
@@ -323,12 +378,14 @@ ApplicationWindow {
                 }
             }
         }
+        } // end header Rectangle
 
-        // Board
+        // ── Board ─────────────────────────────────────────────────────────────
         Item {
             id: boardArea
             Layout.fillWidth: true
-            Layout.fillHeight: true   // take all remaining height
+            Layout.fillHeight: true
+            Layout.margins: 8
             clip: true
 
             // Largest board fitting within both width and height
@@ -344,6 +401,7 @@ ApplicationWindow {
                 x: boardArea.bx;     y: boardArea.by
                 visible: false
                 darkMode: root.isDark
+                fontFamily: notoSansJP.status === FontLoader.Ready ? notoSansJP.name : "sans-serif"
 
                 NumberAnimation on x {
                     id: outgoingAnim
@@ -360,6 +418,7 @@ ApplicationWindow {
                 x: boardArea.bx;     y: boardArea.by
                 boardData:   backend.boardData
                 boardLabels: backend.boardLabels
+                fontFamily:  notoSansJP.status === FontLoader.Ready ? notoSansJP.name : "sans-serif"
                 darkMode:    root.isDark
 
                 NumberAnimation on x {
@@ -424,24 +483,103 @@ ApplicationWindow {
             }
         }
 
-        // Solution label (◀/▶ removed — use board swipe to navigate)
-        Label {
+        // ── Footer bar ────────────────────────────────────────────────────────
+        Rectangle {
             Layout.fillWidth: true
             visible: backend.solutionCount > 0 || backend.solLabel !== ""
-            text: backend.solLabel
-            horizontalAlignment: Text.AlignHCenter
-            font.pixelSize: 14
+            color: isDark ? "#0D47A1" : "#1565C0"
+            implicitHeight: footerCol.implicitHeight + 12
+
+            Column {
+                id: footerCol
+                anchors { fill: parent; margins: 6 }
+                spacing: 4
+
+                // Dot indicator — visible when multiple solutions exist
+                // Caps at 15 dots; maps currentIndex proportionally when over 15
+                PageIndicator {
+                    id: solutionDots
+                    visible: backend.solutionCount > 1
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    count: Math.min(backend.solutionCount, 15)
+                    currentIndex: backend.solutionCount <= 15
+                                  ? backend.currentIndex
+                                  : Math.round(backend.currentIndex * 14
+                                      / Math.max(backend.solutionCount - 1, 1))
+
+                    delegate: Rectangle {
+                        implicitWidth: 8; implicitHeight: 8; radius: 4
+                        color: "white"
+                        opacity: index === solutionDots.currentIndex ? 1.0 : 0.35
+                        Behavior on opacity { NumberAnimation { duration: 200 } }
+                    }
+                }
+
+                // Count text (compact) or status message
+                Label {
+                    width: parent.width
+                    text: backend.solutionCount > 1
+                          ? (backend.currentIndex + 1) + " / " + backend.solutionCount
+                          : backend.solLabel
+                    color: "white"
+                    horizontalAlignment: Text.AlignHCenter
+                    font.pixelSize: backend.solutionCount > 1 ? 11 : 14
+                }
+
+                Label {
+                    width: parent.width
+                    visible: backend.statusText !== ""
+                    text: backend.statusText
+                    color: "#90CAF9"
+                    font.pixelSize: 11
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                }
+            }
+        }
+    }
+
+    // ── Splash screen ────────────────────────────────────────────────────────
+    Rectangle {
+        id: splashScreen
+        anchors.fill: parent
+        color: isDark ? "#1565C0" : "#1976D2"
+        z: 200   // above everything
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 24
+
+            // App name
+            Label {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Puzzle Solver"
+                color: "white"
+                font.pixelSize: 30
+                font.bold: true
+            }
+
+            Label {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Daily Calendar"
+                color: "#B3E5FC"
+                font.pixelSize: 16
+            }
+
+            BusyIndicator {
+                anchors.horizontalCenter: parent.horizontalCenter
+                running: splashScreen.visible
+                Material.accent: "white"
+            }
         }
 
-        // Status bar
-        Label {
-            Layout.fillWidth: true
-            visible: backend.statusText !== ""
-            text: backend.statusText
-            font.pixelSize: 11
-            color: Material.hintTextColor
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.Wrap
+        NumberAnimation on opacity {
+            id: splashFadeOut
+            from: 1.0; to: 0.0
+            duration: 500
+            easing.type: Easing.OutCubic
+            running: false
+            onFinished: splashScreen.visible = false
         }
     }
 

@@ -26,6 +26,12 @@ qt_add_qml_module(PuzzleSolverAndroid
         BoardCanvas.qml
 )
 
+qt_add_resources(PuzzleSolverAndroid "fonts"
+    PREFIX "/fonts"
+    FILES
+        fonts/NotoSansJP.ttf
+)
+
 target_include_directories(PuzzleSolverAndroid PRIVATE ../gui_cpp)
 target_link_libraries(PuzzleSolverAndroid PRIVATE Qt6::Core Qt6::Quick Qt6::QuickDialogs2)
 
