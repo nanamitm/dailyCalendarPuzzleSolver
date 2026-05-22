@@ -285,13 +285,19 @@ jobs:
       - name: Locate and rename APK
         run: |
           tag="${GITHUB_REF_NAME:-dev}"
+          echo "Searching for APK..."
+          find build-android -name "*.apk" | sort
+
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            src="build-android/android-build/build/outputs/apk/release/android-build-release.apk"
+            src=$(find build-android -name "*release*.apk" | grep -v unsigned | head -1)
+            [ -z "$src" ] && src=$(find build-android -name "*.apk" | head -1)
             dest="PuzzleSolver-${tag}-android-arm64.apk"
           else
-            src="build-android/android-build/build/outputs/apk/debug/android-build-debug.apk"
+            src=$(find build-android -name "*debug*.apk" | head -1)
+            [ -z "$src" ] && src=$(find build-android -name "*.apk" | head -1)
             dest="PuzzleSolver-${tag}-android-arm64-debug.apk"
           fi
+          echo "Using APK: $src → $dest"
           cp "$src" "$dest"
 
       - name: Upload to Release
