@@ -28,12 +28,9 @@ Canvas {
 
         ctx.clearRect(0, 0, width, height)
 
-        // Shift all drawing by half the border line-width so the top and left
-        // piece borders are fully visible rather than half-clipped by the canvas edge.
+        // Border line-width (used in Pass 4)
         var lw  = Math.max(1.5, cell * 0.03)
-        var off = lw / 2
-        ctx.save()
-        ctx.translate(off, off)
+        var off = lw / 2   // inset so top/left borders are not half-clipped
 
         // ── helpers ────────────────────────────────────────────────────────
         function g(r, c) {
@@ -144,9 +141,12 @@ Canvas {
         }
 
         // ── Pass 4: piece borders with rounded exterior corners ───────────
-        // Edges are shortened by R near convex corners; arcTo() rounds them.
+        // Translate by off so borders at the canvas edge are not half-clipped.
+        // Only borders are translated; fills stay at integer coords (no grid lines).
+        ctx.save()
+        ctx.translate(off, off)
         ctx.strokeStyle = BORDER_COL
-        ctx.lineWidth   = Math.max(1.5, cell * 0.03)
+        ctx.lineWidth   = lw
         for (r = 0; r < rows; ++r) {
             for (c = 0; c < cols; ++c) {
                 grp = g(r, c)
@@ -202,6 +202,7 @@ Canvas {
                 ctx.stroke()
             }
         }
+        ctx.restore()   // undo translate(off, off) for Pass 4
 
         // ── Pass 5: date label cells ───────────────────────────────────────
         var dR = Math.round(R * 0.6)
@@ -224,7 +225,5 @@ Canvas {
                 }
             }
         }
-
-        ctx.restore()   // undo translate(off, off)
     }
 }
