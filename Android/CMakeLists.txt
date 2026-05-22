@@ -52,3 +52,16 @@ set_target_properties(PuzzleSolverAndroid PROPERTIES
     QT_ANDROID_COMPILE_SDK_VERSION       36
     QT_ANDROID_SDK_BUILD_TOOLS_REVISION  36.0.0
 )
+
+# Qt-level APK signing for Release builds.
+# Qt 6.9.x requires --sign to be passed to androiddeployqt for release packaging.
+# Set QT_ANDROID_KEYSTORE_PATH (and related env vars) before cmake configure to enable.
+if(CMAKE_BUILD_TYPE STREQUAL "Release" AND DEFINED ENV{QT_ANDROID_KEYSTORE_PATH})
+    set_target_properties(PuzzleSolverAndroid PROPERTIES
+        QT_ANDROID_SIGN_APK              TRUE
+        QT_ANDROID_KEYSTORE_PATH         $ENV{QT_ANDROID_KEYSTORE_PATH}
+        QT_ANDROID_KEYSTORE_ALIAS        $ENV{QT_ANDROID_KEYSTORE_ALIAS}
+        QT_ANDROID_KEYSTORE_STORE_PASS   $ENV{QT_ANDROID_KEYSTORE_STORE_PASS}
+        QT_ANDROID_KEYSTORE_KEY_PASS     $ENV{QT_ANDROID_KEYSTORE_KEY_PASS}
+    )
+endif()

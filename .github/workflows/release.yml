@@ -255,6 +255,11 @@ jobs:
       - name: Configure CMake
         env:
           BUILD_TYPE: ${{ startsWith(github.ref, 'refs/tags/') && 'Release' || 'Debug' }}
+          # Qt-level signing (Qt 6.9.x requires this for release androiddeployqt)
+          QT_ANDROID_KEYSTORE_PATH:      ${{ startsWith(github.ref, 'refs/tags/') && format('{0}/keystore.jks', runner.temp) || '' }}
+          QT_ANDROID_KEYSTORE_ALIAS:     ${{ secrets.ANDROID_KEY_ALIAS }}
+          QT_ANDROID_KEYSTORE_STORE_PASS: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          QT_ANDROID_KEYSTORE_KEY_PASS:  ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           # jurplel/install-qt-action sets QT_ROOT_DIR (Android Qt) and QT_HOST_PATH (host Qt)
           NDK_ROOT="${ANDROID_SDK_ROOT}/ndk/27.2.12479018"
