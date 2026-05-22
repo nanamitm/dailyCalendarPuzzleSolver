@@ -98,7 +98,8 @@ android {
 
     packagingOptions {
         jniLibs {
-            useLegacyPackaging = legacyPackaging
+            // legacyPackaging is written by Qt 6.11+ androiddeployqt; default to false for older Qt
+            useLegacyPackaging = project.findProperty('legacyPackaging')?.toBoolean() ?: false
         }
     }
 
