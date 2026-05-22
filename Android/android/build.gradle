@@ -105,8 +105,11 @@ android {
 
     signingConfigs {
         release {
-            if (signingPropertiesFile.exists()) {
-                storeFile file(signingValue("storeFile"))
+            // Use signingValue() which checks env vars first, then the properties file.
+            // This makes signing work both locally (properties file) and in CI (env vars).
+            def sf = signingValue("storeFile")
+            if (sf) {
+                storeFile file(sf)
                 storePassword signingValue("storePassword")
                 keyAlias signingValue("keyAlias")
                 keyPassword signingValue("keyPassword")
@@ -123,7 +126,8 @@ android {
 
     buildTypes {
         release {
-            if (signingPropertiesFile.exists()) {
+            def sf = signingValue("storeFile")
+            if (sf) {
                 signingConfig signingConfigs.release
             }
         }
