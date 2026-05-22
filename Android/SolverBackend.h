@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QDate>
+#include <QUrl>
 #include <QVariantList>
 #include <QStringList>
 #include <QTimer>
@@ -44,6 +45,8 @@ public:
     Q_INVOKABLE void prevSolution();
     Q_INVOKABLE void nextSolution();
     Q_INVOKABLE void refreshPieceSets();
+    Q_INVOKABLE void importPieceSet(const QUrl& fileUrl);
+    Q_INVOKABLE void checkIncomingIntent();
 
 signals:
     void solvingChanged();
@@ -51,6 +54,8 @@ signals:
     void statusTextChanged();
     void pieceSetNamesChanged();
     void slideshowChanged();
+    void importSucceeded(QString description);
+    void importFailed(QString error);
 
 private slots:
     void onSolved();

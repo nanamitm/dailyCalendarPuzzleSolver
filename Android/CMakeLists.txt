@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Quick)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Quick QuickDialogs2)
 qt_policy(SET QTP0002 NEW)
 
 qt_add_executable(PuzzleSolverAndroid
@@ -27,7 +27,7 @@ qt_add_qml_module(PuzzleSolverAndroid
 )
 
 target_include_directories(PuzzleSolverAndroid PRIVATE ../gui_cpp)
-target_link_libraries(PuzzleSolverAndroid PRIVATE Qt6::Core Qt6::Quick)
+target_link_libraries(PuzzleSolverAndroid PRIVATE Qt6::Core Qt6::Quick Qt6::QuickDialogs2)
 
 qt_import_plugins(PuzzleSolverAndroid
     INCLUDE_BY_TYPE

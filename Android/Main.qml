@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
 import QtCore
+import QtQuick.Dialogs
 import PuzzleSolver
 
 ApplicationWindow {
@@ -18,6 +19,68 @@ ApplicationWindow {
     Material.accent: Material.Blue
 
     SolverBackend { id: backend }
+
+    // ── Piece set file picker ─────────────────────────────────────────────────
+    FileDialog {
+        id: pieceSetFileDialog
+        title: "ピースセット JSON を選択"
+        nameFilters: ["JSONファイル (*.json)", "すべてのファイル (*)"]
+        onAccepted: backend.importPieceSet(selectedFile)
+    }
+
+    // Import result notification (Snackbar style)
+    Popup {
+        id: importToast
+        property string message: ""
+        property bool success: true
+
+        parent: Overlay.overlay
+        width: Math.min(parent.width - 32, 400)
+        height: toastLabel.implicitHeight + 24
+        x: (parent.width  - width)  / 2
+        y:  parent.height - height - 24
+        padding: 12
+        modal: false
+        closePolicy: Popup.NoAutoClose
+
+        background: Rectangle {
+            color: importToast.success ? "#323232" : Material.color(Material.Red)
+            radius: 6
+        }
+
+        Label {
+            id: toastLabel
+            anchors.fill: parent
+            text: importToast.message
+            color: "white"
+            font.pixelSize: 13
+            wrapMode: Text.Wrap
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        Timer {
+            running: importToast.visible
+            interval: 3000
+            onTriggered: importToast.close()
+        }
+    }
+
+    // React to import signals from backend
+    property bool importSlideshowActive: backend.slideshow  // reuse existing pattern
+    Connections {
+        target: backend
+        function onImportSucceeded(description) {
+            importToast.success = true
+            importToast.message = "「" + description + "」を追加しました"
+            importToast.open()
+        }
+        function onImportFailed(error) {
+            importToast.success = false
+            importToast.message = "読み込みエラー: " + error
+            importToast.open()
+        }
+    }
 
     // ── Persistent settings ───────────────────────────────────────────────────
     Settings {
@@ -139,6 +202,7 @@ ApplicationWindow {
 
         scheduleSolve()
         scheduleMidnight()
+        backend.checkIncomingIntent()  // import piece set if launched via file/share
     }
 
     // ── Main layout ───────────────────────────────────────────────────────────
@@ -240,10 +304,15 @@ ApplicationWindow {
                         onToggled: root.autoMidnight = checked
                     }
 
-                    MenuSeparator { visible: backend.pieceSetNames.length > 1 }
+                    MenuSeparator {}
+
+                    MenuItem {
+                        text: "ピースセットを読み込む…"
+                        onTriggered: pieceSetFileDialog.open()
+                    }
 
                     Repeater {
-                        model: backend.pieceSetNames.length > 1 ? backend.pieceSetNames : []
+                        model: backend.pieceSetNames
                         MenuItem {
                             text: modelData
                             checkable: true

@@ -1,7 +1,13 @@
 #include "SolverBackend.h"
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
+
+#if defined(Q_OS_ANDROID)
+#include <QJniObject>
+#include <QtCore/qcoreapplication_platform.h>
+#endif
 
 // ── Label helpers ──────────────────────────────────────────────────────────
 
@@ -318,4 +324,103 @@ void SolverBackend::updateBoardData(const Board* board, QDate date)
             m_boardLabels.append(labelMap.contains(key) ? labelMap[key] : QString());
         }
     }
+}
+
+// ── Piece set import ───────────────────────────────────────────────────────
+
+void SolverBackend::importPieceSet(const QUrl& fileUrl)
+{
+    if (!fileUrl.isValid()) return;
+
+    // On Android fileUrl may be a content:// URI — QFile handles both
+    QString sourcePath = fileUrl.isLocalFile()
+                       ? fileUrl.toLocalFile()
+                       : fileUrl.toString();
+
+    QFile src(sourcePath);
+    if (!src.open(QIODevice::ReadOnly)) {
+        emit importFailed("ファイルを開けません: " + src.errorString());
+        return;
+    }
+    QByteArray data = src.readAll();
+    src.close();
+
+    // Determine filename
+    QString fileName = fileUrl.fileName();
+    if (fileName.isEmpty()) fileName = "imported.json";
+    if (!fileName.endsWith(".json", Qt::CaseInsensitive)) fileName += ".json";
+
+    // Write to pieces folder (overwrite if same name)
+    QString destDir = piecesFolder();
+    QDir().mkpath(destDir);
+    QString destPath = destDir + "/" + fileName;
+
+    QFile dst(destPath);
+    if (!dst.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        emit importFailed("保存できません: " + dst.errorString());
+        return;
+    }
+    dst.write(data);
+    dst.close();
+
+    // Validate JSON
+    LoadedPieceSet ps;
+    QString error;
+    if (!loadPieceSetFromJson(destPath, ps, error)) {
+        QFile::remove(destPath);
+        emit importFailed("不正な形式: " + error);
+        return;
+    }
+
+    refreshPieceSets();
+
+    // Auto-select the imported set
+    int newIdx = m_pieceSetNames.indexOf(ps.description.isEmpty() ? fileName : ps.description);
+    if (newIdx > 0) m_currentPieceSet = newIdx;
+
+    emit importSucceeded(ps.description.isEmpty() ? fileName : ps.description);
+}
+
+// ── Incoming intent (Android VIEW / SEND) ─────────────────────────────────
+
+void SolverBackend::checkIncomingIntent()
+{
+#if defined(Q_OS_ANDROID)
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([this]() {
+        QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        if (!activity.isValid()) return;
+
+        QJniObject intent = activity.callObjectMethod(
+            "getIntent", "()Landroid/content/Intent;");
+        if (!intent.isValid()) return;
+
+        QJniObject action = intent.callObjectMethod(
+            "getAction", "()Ljava/lang/String;");
+        if (!action.isValid()) return;
+
+        const QString actionStr = action.toString();
+        QJniObject uri;
+
+        if (actionStr == QLatin1String("android.intent.action.VIEW")) {
+            uri = intent.callObjectMethod("getData", "()Landroid/net/Uri;");
+        } else if (actionStr == QLatin1String("android.intent.action.SEND")) {
+            QJniObject key = QJniObject::fromString("android.intent.extra.STREAM");
+            uri = intent.callObjectMethod(
+                "getParcelableExtra",
+                "(Ljava/lang/String;)Landroid/os/Parcelable;",
+                key.object<jstring>());
+        }
+
+        if (!uri.isValid()) return;
+
+        const QString uriStr = uri.callObjectMethod<jstring>("toString").toString();
+        if (!uriStr.endsWith(".json", Qt::CaseInsensitive) &&
+            !uriStr.contains("json", Qt::CaseInsensitive)) return;
+
+        QMetaObject::invokeMethod(this, [this, uriStr]() {
+            importPieceSet(QUrl(uriStr));
+            // Consume the intent so it isn't processed again on restart
+        }, Qt::QueuedConnection);
+    });
+#endif
 }
