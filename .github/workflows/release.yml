@@ -207,6 +207,104 @@ jobs:
             PuzzleSolver-*
             PuzzleMaker-*
 
+  # ── Android arm64-v8a APK ────────────────────────────────────────────────────
+  # Required GitHub Secrets:
+  #   ANDROID_KEYSTORE_BASE64  – base64-encoded .jks (generate with create_android_keystore.ps1)
+  #   ANDROID_STORE_PASSWORD   – keystore password
+  #   ANDROID_KEY_ALIAS        – key alias (e.g. "puzzlesolver")
+  #   ANDROID_KEY_PASSWORD     – key password
+  android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install Android NDK & platform tools
+        run: |
+          yes | sdkmanager \
+            "ndk;27.2.12479018" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" 2>/dev/null || true
+
+      - name: Install Qt for Android (arm64-v8a + host desktop)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.9.2'
+          host: 'linux'
+          target: 'android'
+          arch: 'android_arm64_v8a'
+          extra: '--autodesktop'
+          cache: true
+
+      - name: Decode signing keystore
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d \
+            > "${{ runner.temp }}/keystore.jks"
+
+      - name: Configure CMake
+        env:
+          BUILD_TYPE: ${{ startsWith(github.ref, 'refs/tags/') && 'Release' || 'Debug' }}
+        run: |
+          # Derive paths from Qt6_DIR set by jurplel/install-qt-action
+          # Qt6_DIR = .../6.9.2/android_arm64_v8a/lib/cmake/Qt6
+          QT_ANDROID_ROOT="$(dirname "$(dirname "$(dirname "${Qt6_DIR}")")")"
+          QT_HOST_PATH="$(dirname "${QT_ANDROID_ROOT}")/gcc_64"
+          NDK_ROOT="${ANDROID_SDK_ROOT}/ndk/27.2.12479018"
+
+          cmake -S Android -B build-android -G Ninja -Wno-dev \
+            "-DCMAKE_TOOLCHAIN_FILE=${QT_ANDROID_ROOT}/lib/cmake/Qt6/qt.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=latest \
+            "-DANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" \
+            "-DANDROID_NDK_ROOT=${NDK_ROOT}" \
+            "-DQT_HOST_PATH=${QT_HOST_PATH}" \
+            "-DCMAKE_BUILD_TYPE=${BUILD_TYPE}"
+
+      - name: Build APK (debug)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: cmake --build build-android
+
+      - name: Build APK (release, signed)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          ANDROID_storeFile: ${{ runner.temp }}/keystore.jks
+          ANDROID_storePassword: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_keyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: cmake --build build-android
+
+      - name: Locate and rename APK
+        run: |
+          tag="${GITHUB_REF_NAME:-dev}"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            src="build-android/android-build/build/outputs/apk/release/android-build-release.apk"
+            dest="PuzzleSolver-${tag}-android-arm64.apk"
+          else
+            src="build-android/android-build/build/outputs/apk/debug/android-build-debug.apk"
+            dest="PuzzleSolver-${tag}-android-arm64-debug.apk"
+          fi
+          cp "$src" "$dest"
+
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PuzzleSolver-*-android-arm64.apk
+
+      - name: Upload artifact
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-arm64
+          path: PuzzleSolver-*-android-arm64-debug.apk
+
   # ── Python CUI (platform-independent zip) ────────────────────────────────────
   python-cui:
     runs-on: ubuntu-latest

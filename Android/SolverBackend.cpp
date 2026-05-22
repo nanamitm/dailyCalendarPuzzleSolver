@@ -188,7 +188,10 @@ void SolverBackend::doSolve()
     m_solLabel = "Solving…";
     emit boardChanged();
 
-    delete m_worker;
+    if (m_worker) {
+        m_worker->wait();   // ensure thread has fully exited before delete
+        delete m_worker;
+    }
     m_worker = new SolverWorker(this);
     m_worker->date    = date;
     m_worker->findAll = findAll;

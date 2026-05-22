@@ -306,6 +306,7 @@ ApplicationWindow {
             MouseArea {
                 anchors.fill: parent
                 enabled: backend.solutionCount > 1 && !backend.solving
+                         && !incomingAnim.running && !outgoingAnim.running
                 property real startX: 0
                 property real startY: 0
 
