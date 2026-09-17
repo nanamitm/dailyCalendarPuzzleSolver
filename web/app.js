@@ -515,22 +515,25 @@ document.addEventListener('drop', ev => {
 // ── Pointer interaction ────────────────────────────────────────────────────
 function addSwipe(target, onSwipe, onTap, onLongPress) {
     let startX = 0, startY = 0, longTimer = null, didLong = false;
+    let activeId = null;   // ignore a pointerup without its own pointerdown
 
     target.addEventListener('pointerdown', ev => {
+        activeId = ev.pointerId;
         startX = ev.clientX; startY = ev.clientY; didLong = false;
         if (onLongPress) {
             longTimer = setTimeout(() => { didLong = true; onLongPress(); }, 600);
         }
     });
-    const end = ev => {
+    target.addEventListener('pointerup', ev => {
         clearTimeout(longTimer);
+        if (ev.pointerId !== activeId) return;
+        activeId = null;
         if (didLong) return;
         const dx = ev.clientX - startX, dy = ev.clientY - startY;
         if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 40) onSwipe(dx < 0);
         else if (Math.hypot(dx, dy) < 10 && onTap) onTap();
-    };
-    target.addEventListener('pointerup', end);
-    target.addEventListener('pointercancel', () => clearTimeout(longTimer));
+    });
+    target.addEventListener('pointercancel', () => { clearTimeout(longTimer); activeId = null; });
 }
 
 addSwipe(el.dateLabel,
