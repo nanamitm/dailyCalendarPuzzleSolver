@@ -39,6 +39,14 @@ chmod +x PuzzleSolverGUI
 ./PuzzleSolverGUI
 ```
 
+## Web (HTML5) version
+
+A browser port of the Qt/Android solver runs at
+**https://nanamitm.github.io/dailyCalendarPuzzleSolver/** — no install needed,
+works offline once loaded, and can be added to a phone home screen (PWA).
+It has the same solver, board rendering, all-solutions/slideshow modes and
+PuzzleMaker piece-set import as the Android app. Sources in [`web/`](web/).
+
 ## Qt6 GUI
 
 A graphical interface (`gui_cpp/`) built with Qt6 C++ is available alongside the command-line solvers. It provides:

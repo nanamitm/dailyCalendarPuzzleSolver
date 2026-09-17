@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1976D2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1565C0" media="(prefers-color-scheme: dark)">
+<meta name="description" content="日めくりカレンダーパズル（Daily Calendar Puzzle）の解を日付ごとに探索して表示します。">
+<title>Daily Calendar Puzzle Solver</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header id="header">
+    <button id="prevDay" class="icon-btn" title="前日" aria-label="前日">‹</button>
+    <div id="dateLabel" role="button" tabindex="0" title="タップで日付選択 / 長押しで今日へ"></div>
+    <button id="nextDay" class="icon-btn" title="翌日" aria-label="翌日">›</button>
+    <div class="menu-wrap">
+      <button id="gearButton" class="icon-btn" title="設定" aria-label="設定" aria-haspopup="true">⚙</button>
+      <div id="settingsMenu" class="menu" hidden>
+        <button class="menu-item" data-action="findAll"    role="menuitemcheckbox"><span class="check"></span>全解探索</button>
+        <button class="menu-item" data-action="slideshow"  role="menuitemcheckbox"><span class="check"></span>スライドショー</button>
+        <button class="menu-item" data-action="midnight"   role="menuitemcheckbox"><span class="check"></span>深夜自動更新</button>
+        <div class="menu-sep"></div>
+        <button class="menu-item" data-action="import">ピースセットを読み込む…</button>
+        <div id="pieceSetList"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Board ──────────────────────────────────────────────────────────── -->
+  <main id="boardArea">
+    <canvas id="outgoingBoard" class="board"></canvas>
+    <canvas id="boardCanvas" class="board"></canvas>
+
+    <div id="solvingOverlay" hidden>
+      <div class="spinner"></div>
+      <div class="solving-text">解を計算中…</div>
+      <button id="cancelButton" class="flat-btn danger">キャンセル</button>
+    </div>
+  </main>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+  <footer id="footer" hidden>
+    <div id="dots" class="dots"></div>
+    <div class="footer-nav">
+      <button id="prevSol" class="nav-btn" title="前の解" aria-label="前の解" hidden>◀</button>
+      <div id="solLabel"></div>
+      <button id="nextSol" class="nav-btn" title="次の解" aria-label="次の解" hidden>▶</button>
+    </div>
+    <div id="statusText"></div>
+  </footer>
+</div>
+
+<!-- ── Splash ───────────────────────────────────────────────────────────── -->
+<div id="splash">
+  <div class="splash-title">Puzzle Solver</div>
+  <div class="splash-sub">Daily Calendar</div>
+  <div class="spinner"></div>
+</div>
+
+<!-- ── Date picker ──────────────────────────────────────────────────────── -->
+<div id="datePickerBackdrop" class="backdrop" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="日付を選択">
+    <div class="dialog-title">日付を選択</div>
+    <div class="tumbler-headers"><span>年</span><span>月</span><span>日</span></div>
+    <div class="tumblers">
+      <div class="tumbler" id="yearTumbler"></div>
+      <div class="tumbler" id="monthTumbler"></div>
+      <div class="tumbler" id="dayTumbler"></div>
+      <div class="tumbler-mask"></div>
+    </div>
+    <div class="dialog-buttons">
+      <button id="pickerCancel" class="flat-btn">キャンセル</button>
+      <button id="pickerOk" class="flat-btn accent">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+<input type="file" id="pieceSetInput" accept=".json,application/json" hidden>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
