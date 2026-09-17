@@ -29,10 +29,14 @@ jobs:
 
       - uses: actions/configure-pages@v6
 
-      # web/ is plain static files — no build step needed
+      # Hashed file names: GitHub Pages serves everything with max-age=600,
+      # so without them a browser can mix a new index.html with stale scripts
+      - name: Collect site
+        run: python3 web/make-dist.py web dist
+
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: web
+          path: dist
 
       - id: deployment
         uses: actions/deploy-pages@v5

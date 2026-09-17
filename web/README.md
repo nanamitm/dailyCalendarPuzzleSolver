@@ -15,6 +15,7 @@ A browser port of the Qt/Android Daily Calendar Puzzle Solver
 | `app.js` | UI state, settings, animations, date picker | `Android/SolverBackend.cpp`, `Android/Main.qml` |
 | `index.html`, `styles.css` | Markup and theming (light / dark) | `Android/Main.qml` |
 | `sw.js`, `manifest.webmanifest` | PWA: offline use and install to home screen | — |
+| `make-dist.py` | Builds the published folder with content-hashed file names | — |
 
 The algorithm is the same as the C++ version: the first free square is found
 scanning from the top left, then every remaining piece is tried on it
@@ -55,4 +56,14 @@ Then open <http://localhost:8765>.
 ## Deployment
 
 `.github/workflows/pages.yml` publishes this folder to GitHub Pages on every
-push to `main` that touches `web/`.
+push to `main` that touches `web/`. What is published is assembled by
+`make-dist.py`, which rewrites every reference to use content-hashed file
+names (`app.<hash>.js`, `solver-core.<hash>.js`, …). GitHub Pages serves
+everything with `Cache-Control: max-age=600`, so without that a browser could
+pair a fresh `index.html` with a ten-minute-old module. `index.html` and
+`sw.js` keep their names — the first is the entry point, the second is
+registered by URL and needs a stable one.
+
+```bash
+python3 web/make-dist.py web dist
+```
