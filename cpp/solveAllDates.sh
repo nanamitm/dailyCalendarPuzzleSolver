@@ -1,35 +1,45 @@
 #!/bin/bash
 
-if [ $# -eq 0 ]; then
-    CNT=0
-    while [ $CNT -ne 12 ]
-    do
-        CNT=$(expr $CNT + 1)
-        ./multiThreads.sh ${CNT} &
-    done
-    echo "All threads has been launched"
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+solver="$script_dir/poodlepuzzleDailyCalendarSolver.bin"
+
+if (( $# > 1 )) || { (( $# == 1 )) && [[ ! $1 =~ ^([1-9]|1[0-2])$ ]]; }; then
+    echo "Usage: $0 [month 1-12]" >&2
+    exit 2
+fi
+if [[ ! -x "$solver" ]]; then
+    echo "Solver executable not found: $solver (run make in cpp/)" >&2
+    exit 2
 fi
 
-if [ $# -eq 1 ]; then
-    WDAY=0
-    START=true
-    FILENAME=Month_$1.txt
-    echo '{' > $FILENAME
-    while [ $WDAY -ne 7 ]
-    do
-        WDAY=$(expr $WDAY + 1)
-        DAY=0
-        while [ $DAY -ne 31 ]
-        do
-            DAY=$(expr $DAY + 1)
-            if [ $START == false ]
-            then
-                echo "," >> $FILENAME
-            else
-                START=false
-            fi
-            ./poodlepuzzleDailyCalendarSolver.bin $WDAY $DAY $1 i >> $FILENAME
-        done
+if (( $# == 0 )); then
+    pids=()
+    for month in {1..12}; do
+        bash "$script_dir/solveAllDates.sh" "$month" &
+        pids+=("$!")
     done
-    echo '}' >> $FILENAME
+    status=0
+    for pid in "${pids[@]}"; do
+        wait "$pid" || status=1
+    done
+    exit "$status"
 fi
+
+filename="Month_$1.txt"
+printf '{\n' > "$filename"
+first=true
+for weekday in {1..7}; do
+    for day in {1..31}; do
+        entry=$("$solver" "$weekday" "$day" "$1" -i)
+        status=$?
+        # Exit 1 means this date has no solution; its JSON entry is still valid.
+        if (( status > 1 )); then
+            echo "Solver failed for weekday=$weekday day=$day month=$1" >&2
+            exit "$status"
+        fi
+        if [[ $first == false ]]; then printf ',\n' >> "$filename"; fi
+        first=false
+        printf '%s' "$entry" >> "$filename"
+    done
+done
+printf '\n}\n' >> "$filename"
