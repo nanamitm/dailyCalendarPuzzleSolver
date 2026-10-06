@@ -1,0 +1,35 @@
+name: Regression tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regressions:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Python regressions
+        run: python -B -m unittest discover -s py -p test_regressions.py
+      - name: Batch script regressions
+        run: python -B tests/test_batch_script.py
+      - name: Web regressions
+        run: node tests/web_regressions.mjs
+      - name: Install Qt
+        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev cmake ninja-build
+      - name: Native regressions with bounds and overflow checks
+        run: |
+          cmake -S tests -B build-tests -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            '-DCMAKE_CXX_FLAGS=-fsanitize=bounds,signed-integer-overflow -fsanitize-undefined-trap-on-error'
+          cmake --build build-tests --parallel 2
+          ctest --test-dir build-tests --output-on-failure
