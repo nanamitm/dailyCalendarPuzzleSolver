@@ -102,7 +102,7 @@ MainWindow::~MainWindow()
     s.setValue("alwaysOnTop",  m_onTopAct->isChecked());
     s.setValue("slideshow",    slideshowOn);
 
-    if (m_worker) { m_worker->quit(); m_worker->wait(); }
+    if (m_worker) { m_worker->requestCancel(); m_worker->wait(); }
 }
 
 void MainWindow::buildUi()

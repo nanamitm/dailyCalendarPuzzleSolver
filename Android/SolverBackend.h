@@ -26,6 +26,7 @@ class SolverBackend : public QObject {
 
 public:
     explicit SolverBackend(QObject* parent = nullptr);
+    ~SolverBackend() override;
 
     bool         solving()         const { return m_solving; }
     int          solutionCount()   const { return (int)m_solutions.size(); }

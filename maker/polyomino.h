@@ -2,6 +2,7 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <atomic>
 
 using Cell  = std::pair<int,int>;
 using Shape = std::vector<Cell>;   // sorted, min-x=0, min-y=0 (canonical form)
@@ -16,7 +17,8 @@ Shape normalize(Shape s);
 Shape canonical(const Shape& s);
 
 // All distinct free polyominoes of the given size (canonical forms)
-std::vector<Shape> generatePolyominoes(int size);
+std::vector<Shape> generatePolyominoes(int size,
+                                     const std::atomic<bool>* cancelled = nullptr);
 
 // All unique orientations of s (normalized); 4 transforms if !bothSides, 8 if bothSides
 std::vector<Shape> uniqueTransforms(const Shape& s, bool bothSides);

@@ -73,6 +73,14 @@ SolverBackend::SolverBackend(QObject* parent) : QObject(parent)
 
 // ── Slideshow ──────────────────────────────────────────────────────────────
 
+SolverBackend::~SolverBackend()
+{
+    if (m_worker) {
+        m_worker->requestCancel();
+        m_worker->wait();
+    }
+}
+
 void SolverBackend::setSlideshow(bool on)
 {
     if (m_slideshow == on) return;

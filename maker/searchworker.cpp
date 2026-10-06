@@ -112,8 +112,6 @@ void SearchWorker::run()
 #endif
     using clock = std::chrono::steady_clock;
     m_t0          = clock::now();
-    m_cancelled.store(false, std::memory_order_relaxed);
-    m_paused.store(false,    std::memory_order_relaxed);
     m_solFound    = 0;
     m_globalCombo = 0;
     m_globalTotal = 0;
@@ -123,8 +121,8 @@ void SearchWorker::run()
     // ── 1. Generate polyominoes for each size in user range ───────────────────
     std::vector<int>                allSizes;
     std::vector<std::vector<Shape>> allPolys;
-    for (int s = minSize; s <= maxSize; ++s) {
-        auto polys = generatePolyominoes(s);
+    for (int s = minSize; s <= maxSize && !m_cancelled.load(); ++s) {
+        auto polys = generatePolyominoes(s, &m_cancelled);
         if (!polys.empty()) {
             allSizes.push_back(s);
             allPolys.push_back(std::move(polys));

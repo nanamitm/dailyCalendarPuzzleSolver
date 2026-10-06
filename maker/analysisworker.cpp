@@ -12,7 +12,6 @@
 
 void AnalysisWorker::run()
 {
-    m_cancelled.store(false, std::memory_order_relaxed);
 
     static constexpr int kDays[] = {0,31,29,31,30,31,30,31,31,30,31,30,31};
     static const char* kWd[]     = {"","月","火","水","木","金","土","日"};
@@ -36,8 +35,8 @@ void AnalysisWorker::run()
 
     // Leave one core free for the OS and other applications.
     // hardware_concurrency() can return 0 on unusual systems, so clamp to [1, ...].
-    int nThreads = static_cast<int>(
-        std::max(1u, std::thread::hardware_concurrency() - 1u));
+    unsigned int cores = std::thread::hardware_concurrency();
+    int nThreads = static_cast<int>(cores > 1 ? cores - 1 : 1);
     std::atomic<int> nextIdx{0};
     std::atomic<int> doneCount{0};
     std::atomic<int> activeThreads{nThreads};
