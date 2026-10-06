@@ -58,7 +58,7 @@ public:
     Board* putPiece(Piece& piece, int posX, int posY) const;
 
 private:
-    bool putSquare(int value, int x, int y);
+    bool putSquare(int value, long long x, long long y);
 };
 
 // ── Solver output ──────────────────────────────────────────────────────────

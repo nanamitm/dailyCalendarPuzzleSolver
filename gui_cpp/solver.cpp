@@ -140,7 +140,7 @@ void Board::nextAvailablePos(int* ox, int* oy) const
     *ox = -1; *oy = -1;
 }
 
-bool Board::putSquare(int value, int x, int y)
+bool Board::putSquare(int value, long long x, long long y)
 {
     if (x < -BOX || x >= BXL - BOX || y < -BOY || y >= BYL - BOY)
         return false;
@@ -159,7 +159,7 @@ Board* Board::putPiece(Piece& piece, int posX, int posY) const
 
     // Walk backward through the piece vectors
     int idx = -1;
-    int cx = posX, cy = posY;
+    long long cx = posX, cy = posY;
     Vect v = piece[idx];
     while (!v.isNull()) {
         cx -= v.x; cy -= v.y;
