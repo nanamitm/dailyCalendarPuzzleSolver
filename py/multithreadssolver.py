@@ -6,10 +6,12 @@ import multiprocessing as mp
 def recursiveSolve(board,pieces,pid,tries,nbPcsPut,nbSol,side,startTime,findAll,printSol,pipe,stop,solutions):
     if len(pieces):
         pos = board.nextAvailablePos()
+        if pos is None:
+            return tries,nbPcsPut,nbSol,stop,solutions
         for piece in pieces:
             for origin in range(len(piece)):
                 piece.setOrigin(origin)
-                relTrans = piece.relevantTrans()
+                relTrans = piece.relevantTrans(side)
                 for trans in relTrans:
                     if  ( (side=="front" and trans.isFront()) or (side=="back" and trans.isBack()) or side=="both"):
                         piece.transform(trans)
@@ -25,6 +27,8 @@ def recursiveSolve(board,pieces,pid,tries,nbPcsPut,nbSol,side,startTime,findAll,
                             newPieces.remove(piece)
                             tries,nbPcsPut,nbSol,stop,solutions = recursiveSolve(newBoard,newPieces,pid,tries,nbPcsPut,nbSol,side,startTime,findAll,printSol,pipe,stop,solutions)
     else:
+        if board.nextAvailablePos() is not None:
+            return tries,nbPcsPut,nbSol,stop,solutions
         if printSol==True:
             print("\nSolution found by process {} in {} after testing {} combinations and putting {} pieces:".format(pid,str(datetime.now()-startTime)[:-7],tries,nbPcsPut))
             print(board,flush=True)
@@ -42,7 +46,7 @@ def pieceSolve(board,pieces,piece,side,startTime,findAll,printSol,pid,pipe):
         stop=False
         solutions=[]
         pos = board.nextAvailablePos()
-        relTrans = piece.relevantTrans()
+        relTrans = piece.relevantTrans(side)
         for trans in relTrans:
             if  ( (side=="front" and trans.isFront()) or (side=="back" and trans.isBack()) or side=="both"):
                 piece.transform(trans)
@@ -90,6 +94,8 @@ class MultiThreadPuzzleSolver():
         self._printSol=False
         
     def solve(self,findAll=False,printSol=True,sides="front"):
+        if sum(len(piece) for piece in self._pieces) != self._board.availableSquareCount():
+            return [], 0, 0
         self._sides = sides
         self._findAll = findAll
         self._printSol=printSol

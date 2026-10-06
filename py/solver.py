@@ -32,11 +32,16 @@ class PuzzleSolver():
         self._print=True
         
     def solve(self,findAll=False,printSol=True,sides="front"):
+        self._stop = False
+        self._nbTries = 0
+        self._nbPcsPut = 0
         self._findAll = findAll
         self._print = printSol
         self._sides = sides       
         solutions = []
         self._startTime = datetime.now()
+        if sum(len(piece) for piece in self._pieces) != self._board.availableSquareCount():
+            return [], 0, 0
         solutions=self._solve(self._board,self._pieces,solutions)
         return solutions,self._nbTries,self._nbPcsPut
         
@@ -44,10 +49,12 @@ class PuzzleSolver():
         nbPcs = len(pieces)
         if nbPcs:
             pos = board.nextAvailablePos()
+            if pos is None:
+                return solutions
             for piece in pieces:
                 for origin in range(len(piece)):
                     piece.setOrigin(origin)
-                    relTrans = piece.relevantTrans()
+                    relTrans = piece.relevantTrans(self._sides)
                     for trans in relTrans:
                         if nbPcs == self._nbPieces and not self._stop:
                             execDuration = str(datetime.now()-self._startTime)
@@ -74,6 +81,8 @@ class PuzzleSolver():
             if nbPcs == self._nbPieces:
                     print("\n")#to cleanely end same line print above
         else:
+            if board.nextAvailablePos() is not None:
+                return solutions
             if self._print == True:
                 print("\nSolution found in {} after testing {} combinations and putting {} pieces:".format(str(datetime.now()-self._startTime)[:-7],self._nbTries,self._nbPcsPut))
                 print(board,flush=True)

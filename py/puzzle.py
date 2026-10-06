@@ -81,6 +81,8 @@ class Piece():
             self._relevantTrans = self._listRelevantTransform()
         else:
             self._relevantTrans = [Trans.UpFront]
+        self._frontTrans = self._listRelevantTransform("front")
+        self._backTrans = self._listRelevantTransform("back")
 
     def __repr__(self):
         return "(base={}\ncurrent={}\nname={}\norigin=({})\nrelevantTrans={})".format(self._baseShape,self._currShape,self.name,self._origin,self._relevantTrans)
@@ -114,13 +116,21 @@ class Piece():
         if origin >=0 and origin <= len(self._currShape):
             self._origin = origin
      
-    def relevantTrans(self):
+    def relevantTrans(self, sides="both"):
+        if sides == "front":
+            return self._frontTrans
+        if sides == "back":
+            return self._backTrans
         return self._relevantTrans
         
-    def _listRelevantTransform(self):
+    def _listRelevantTransform(self, sides="both"):
         transformedPiecesFrames = []
         relevantTransform = []
         for trans in Trans:
+            if sides == "front" and not trans.isFront():
+                continue
+            if sides == "back" and not trans.isBack():
+                continue
             transPiece = self._transform(trans)
             minX = 0
             minY = 0
@@ -301,3 +311,6 @@ class Board():
             y+=1
             
         return ret
+
+    def availableSquareCount(self):
+        return sum(cell is None for row in self._board for cell in row)
