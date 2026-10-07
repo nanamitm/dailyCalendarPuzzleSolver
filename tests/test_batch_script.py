@@ -41,6 +41,23 @@ class BatchScriptTests(unittest.TestCase):
                                      capture_output=True, timeout=10)
             self.assertEqual(invalid.returncode, 2)
 
+    def test_solver_argument_error_aborts_export(self):
+        source = Path(__file__).resolve().parents[1] / 'cpp' / 'solveAllDates.sh'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / source.name
+            script.write_text(source.read_text(), encoding='utf-8', newline='\n')
+            # The solver exits 2 and prints its help on invalid arguments;
+            # that must stop the export instead of being stored as "no solution".
+            solver = root / 'poodlepuzzleDailyCalendarSolver.bin'
+            solver.write_text('#!/bin/bash\necho "Synopsis:"\nexit 2\n',
+                              encoding='utf-8', newline='\n')
+            solver.chmod(0o755)
+            result = subprocess.run([self.bash, str(script), '1'], cwd=root,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 2)
+            self.assertNotIn('Synopsis', (root / 'Month_1.txt').read_text())
+
 
 if __name__ == '__main__':
     unittest.main()
