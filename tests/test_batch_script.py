@@ -7,11 +7,22 @@ import tempfile
 import unittest
 
 
+def find_git_bash():
+    # PATH lookup on Windows may return the WSL launcher in System32, so use
+    # the Bash shipped with Git for Windows, wherever Git is installed.
+    try:
+        exec_path = subprocess.run(['git', '--exec-path'], capture_output=True,
+                                   text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    # exec_path is <git root>/mingw64/libexec/git-core
+    return str(Path(exec_path).parents[2] / 'bin' / 'bash.exe')
+
+
 class BatchScriptTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.bash = (r'C:\Program Files\Git\bin\bash.exe' if os.name == 'nt'
-                    else shutil.which('bash'))
+        cls.bash = find_git_bash() if os.name == 'nt' else shutil.which('bash')
         if not cls.bash or not Path(cls.bash).is_file():
             raise unittest.SkipTest('Bash is unavailable')
 
