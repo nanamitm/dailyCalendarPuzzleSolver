@@ -143,6 +143,7 @@ function tryPlace(cells, piece, posX, posY, placed) {
 // ── Recursive solver ───────────────────────────────────────────────────────
 function solveRec(cells, pieces, out, uniqueSol, st) {
     if (pieces.length === 0) {
+        if (cells.includes(0)) return false;
         out.solutions.push(Int8Array.from(cells));
         return true;
     }
@@ -220,6 +221,8 @@ export function solveDate(weekday, day, month, findAll) {
 
 export function solveDateCustom(weekday, day, month, findAll, pieceSet) {
     const t0 = now();
+    if (pieceSet.pieces.reduce((area, p) => area + p.len + 1, 0) !== 47)
+        return { solutions: [], tries: 0, pcsPlaced: 0, elapsedMs: now() - t0 };
     // Clone so transform() does not pollute the stored set
     const out = runPhase(weekday, day, month, findAll, pieceSet.pieces.map(p => p.clone()));
     out.elapsedMs = now() - t0;
@@ -257,15 +260,47 @@ function computeRelevantTrans(vecs, bothSides) {
 // Parse a JSON piece set produced by PuzzleMaker. Throws on invalid input.
 export function parsePieceSet(text, fallbackName) {
     const root = JSON.parse(text);
+    if (!root || typeof root !== 'object' || Array.isArray(root))
+        throw new Error('JSONのルートはオブジェクトである必要があります');
     const arr = root.pieces;
-    if (!Array.isArray(arr) || arr.length === 0)
-        throw new Error('pieces 配列が空です');
+    if (!Array.isArray(arr) || arr.length === 0 || arr.length > 47)
+        throw new Error('pieces 配列には1〜47個のピースが必要です');
 
     const bothSides = root.bothSides !== undefined ? !!root.bothSides : true;
     const pieces = arr.map((pobj, pi) => {
-        const vecs = (pobj.vectors || []).map(v => [v[0] | 0, v[1] | 0]);
+        if (!pobj || !Array.isArray(pobj.vectors) || pobj.vectors.length >= 47)
+            throw new Error('各ピースには47マス以下の vectors 配列が必要です');
+        let cx = 0, cy = 0, minX = 0, maxX = 0, minY = 0, maxY = 0;
+        const cells = new Set(['0,0']);
+        const vecs = pobj.vectors.map(v => {
+            if (!Array.isArray(v) || v.length !== 2 ||
+                !v.every(n => Number.isInteger(n) && n >= -7 && n <= 7))
+                throw new Error('ベクトルは -7〜7 の整数2個で指定してください');
+            cx += v[0]; cy += v[1];
+            const k = cx + ',' + cy;
+            if (cells.has(k)) throw new Error('ピース内のマスが重複しています');
+            cells.add(k);
+            minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+            minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
+            return v;
+        });
+        if (maxX - minX >= 8 || maxY - minY >= 8)
+            throw new Error('ピースの幅・高さは8マス以下である必要があります');
+        const reached = new Set(['0,0']), queue = [[0,0]];
+        for (let i = 0; i < queue.length; ++i) {
+            const [x,y] = queue[i];
+            for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+                const k = (x + dx) + ',' + (y + dy);
+                if (cells.has(k) && !reached.has(k)) {
+                    reached.add(k); queue.push([x + dx,y + dy]);
+                }
+            }
+        }
+        if (reached.size !== cells.size) throw new Error('ピースのマスがつながっていません');
         return new Piece(vecs, pi + 1, computeRelevantTrans(vecs, bothSides));
     });
+    if (pieces.reduce((area, p) => area + p.len + 1, 0) !== 47)
+        throw new Error('ピースの合計面積は47マスである必要があります');
 
     return { description: root.description || fallbackName || '', bothSides, pieces };
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include <QThread>
 #include <QMutex>
+#include <QMutexLocker>
 #include <QWaitCondition>
 #include <QStringList>
 #include <QVector>
@@ -21,9 +22,17 @@ public:
     int  maxPieces = 11;
     bool bothSides = true;
 
-    void requestCancel() { m_cancelled.store(true,  std::memory_order_relaxed); }
-    void requestPause()  { m_paused.store(true,     std::memory_order_relaxed); }
+    void requestCancel() {
+        QMutexLocker locker(&m_pauseMutex);
+        m_cancelled.store(true, std::memory_order_relaxed);
+        m_pauseCond.wakeAll();
+    }
+    void requestPause() {
+        QMutexLocker locker(&m_pauseMutex);
+        m_paused.store(true, std::memory_order_relaxed);
+    }
     void requestResume() {
+        QMutexLocker locker(&m_pauseMutex);
         m_paused.store(false, std::memory_order_relaxed);
         m_pauseCond.wakeAll();
     }

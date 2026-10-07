@@ -63,14 +63,16 @@ static bool solveRec(int board[BYL][BXL],
     if (px < 0) return true;   // board fully covered → solution found
     if (cancelled.load(std::memory_order_relaxed)) return false;
 
+    std::vector<Cell> placed;
     int n = static_cast<int>(pieces.size());
     for (int pi = 0; pi < n; ++pi) {
         if (usedMask & (1 << pi)) continue;
 
         for (const Shape& trans : pieces[pi].transforms) {
+            placed.reserve(trans.size());
             // Try each cell in this orientation as the anchor landing on (px, py)
             for (auto [cx, cy] : trans) {
-                int placed[7][2];
+                placed.clear();
                 int np = 0;
                 bool ok = true;
 
@@ -79,16 +81,15 @@ static bool solveRec(int board[BYL][BXL],
                     int ny = py + dy - cy;
                     if (ny < 0 || ny >= BYL || nx < 0 || nx >= BXL ||
                         board[ny][nx] != 0) { ok = false; break; }
-                    placed[np][0] = nx;
-                    placed[np][1] = ny;
+                    placed.emplace_back(nx, ny);
                     ++np;
                 }
                 if (!ok) continue;
 
-                for (int i = 0; i < np; ++i) board[placed[i][1]][placed[i][0]] = pi + 1;
+                for (int i = 0; i < np; ++i) board[placed[i].second][placed[i].first] = pi + 1;
                 if (solveRec(board, pieces, usedMask | (1 << pi), cancelled))
                     return true;
-                for (int i = 0; i < np; ++i) board[placed[i][1]][placed[i][0]] = 0;
+                for (int i = 0; i < np; ++i) board[placed[i].second][placed[i].first] = 0;
             }
         }
     }
@@ -150,22 +151,25 @@ static void countRec(int board[BYL][BXL],
 
     if (px < 0) { ++count; return; }   // solution found, keep counting
 
+    std::vector<Cell> placed;
     int n = static_cast<int>(pieces.size());
     for (int pi = 0; pi < n; ++pi) {
         if (usedMask & (1 << pi)) continue;
         for (const Shape& trans : pieces[pi].transforms) {
+            placed.reserve(trans.size());
             for (auto [cx, cy] : trans) {
-                int placed[7][2]; int np = 0; bool ok = true;
+                placed.clear();
+                int np = 0; bool ok = true;
                 for (auto [dx, dy] : trans) {
                     int nx = px + dx - cx, ny = py + dy - cy;
                     if (ny < 0 || ny >= BYL || nx < 0 || nx >= BXL ||
                         board[ny][nx] != 0) { ok = false; break; }
-                    placed[np][0] = nx; placed[np][1] = ny; ++np;
+                    placed.emplace_back(nx, ny); ++np;
                 }
                 if (!ok) continue;
-                for (int i = 0; i < np; ++i) board[placed[i][1]][placed[i][0]] = pi + 1;
+                for (int i = 0; i < np; ++i) board[placed[i].second][placed[i].first] = pi + 1;
                 countRec(board, pieces, usedMask | (1 << pi), maxCount, count, cancelled);
-                for (int i = 0; i < np; ++i) board[placed[i][1]][placed[i][0]] = 0;
+                for (int i = 0; i < np; ++i) board[placed[i].second][placed[i].first] = 0;
                 if (count >= maxCount || cancelled.load()) return;
             }
         }

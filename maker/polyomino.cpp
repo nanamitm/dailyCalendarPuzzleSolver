@@ -42,7 +42,7 @@ Shape canonical(const Shape& s)
     return best;
 }
 
-std::vector<Shape> generatePolyominoes(int size)
+std::vector<Shape> generatePolyominoes(int size, const std::atomic<bool>* cancelled)
 {
     if (size < 1) return {};
 
@@ -55,6 +55,7 @@ std::vector<Shape> generatePolyominoes(int size)
     for (int n = 1; n < size; ++n) {
         std::set<Shape> next;
         for (const auto& poly : current) {
+            if (cancelled && cancelled->load(std::memory_order_relaxed)) return {};
             std::set<Cell> occupied(poly.begin(), poly.end());
             for (auto [cx, cy] : poly) {
                 for (int d = 0; d < 4; ++d) {

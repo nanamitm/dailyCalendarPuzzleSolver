@@ -34,9 +34,9 @@ def CreatePieces():
     U = Piece(shape=[Vector(0,1),Vector(1,0),Vector(1,0),Vector(0,-1)],name="U")# U shaped 5 squares
     Lequal = Piece(shape=[Vector(0,1),Vector(0,1),Vector(1,0),Vector(1,0)],name="LL")# L with equal lengh arms
     return [O,t,Q,BigS,SmallsTail,BigL,U,Lequal]
-    
+
 if __name__ == "__main__":
-    userDate = input('Calendar puzzle date to solve (ex: 31/01/2022), leave empty for today's date): ")
+    userDate = input("Calendar puzzle date to solve (ex: 31/01/2022, leave empty for today's date): ")
     if len(userDate)== 0:
         userDate = datetime.now().strftime("%d/%m/%Y")
         print("Solving current date {}".format(userDate))
@@ -53,4 +53,4 @@ if __name__ == "__main__":
         starttime = datetime.now()
         solutions,tries,nbPcsPut= solver.solve(findAll=True,printSol=True,sides="both")
         print("{} solutions found for {} in {} after {} tries and placing {} pieces".format(len(solutions),prettyDate,datetime.now() - starttime,tries,nbPcsPut))
-     
+

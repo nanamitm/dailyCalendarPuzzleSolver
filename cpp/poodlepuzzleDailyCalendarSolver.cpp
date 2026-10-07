@@ -498,7 +498,7 @@ void printError(string msg, string arg=""){
 
 void printHelp(string prog)
 {
-    cout << "Synopsis:\n\n    [weekday day month] [-h] [-u] [-i] [-s] [-t [PcsNb] [PcsNb] [PcsNb]...]\n\nDescription:\n\n    Solver for Daily Calendar Puzzle with month, day of month and day of week. Return value is 0 if at least one solution has been found or -h option is used.\n\nArguments:\n\n    weekday day month\n          Date to solve. weekday from 1=Monday to 7=Sunday, day from 1 to 31 and month from 1 to 12.\n\n    -h    Print this help\n\n    -u    Stop looking for solutions when a first one has been found\n\n    -i    Make the results appear once all of them has been found in a single line of python syntax\n\n    -s     Make the pieces be used with their smooth side up as reference side, instead their frosted side\n\n    -t    Specify which pieces can be flipped (use both sides instead reference side only)\n\n    PcsNb Number of a piece in range 1-10 added after '-t' to specify a pieces which shall be used both sides during solutions searching.\n\n          Pieces numbers are these ones:\n\n          7  7     4  4  4\n          1  7  7  7  4  2\n          1  6  6  3  4  2  2\n          1 10  6  3  3  3  2\n          1 10  6  6  9  9  9\n          8 10 10 10  9     9\n          8  8  8  8     5  5\n                      5  5  5\n\nExample\n\n    To solve Friday 23rd of January\n\n    " << prog << " 5 23 1\n" << endl;
+    cout << "Synopsis:\n\n    [weekday day month] [-h] [-u] [-i] [-s] [-t [PcsNb] [PcsNb] [PcsNb]...]\n\nDescription:\n\n    Solver for Daily Calendar Puzzle with month, day of month and day of week. Return value is 0 if at least one solution has been found or -h option is used, 1 if no solution has been found, and 2 if the arguments are invalid.\n\nArguments:\n\n    weekday day month\n          Date to solve. weekday from 1=Monday to 7=Sunday, day from 1 to 31 and month from 1 to 12.\n\n    -h    Print this help\n\n    -u    Stop looking for solutions when a first one has been found\n\n    -i    Make the results appear once all of them has been found in a single line of python syntax\n\n    -s     Make the pieces be used with their smooth side up as reference side, instead their frosted side\n\n    -t    Specify which pieces can be flipped (use both sides instead reference side only)\n\n    PcsNb Number of a piece in range 1-10 added after '-t' to specify a pieces which shall be used both sides during solutions searching.\n\n          Pieces numbers are these ones:\n\n          7  7     4  4  4\n          1  7  7  7  4  2\n          1  6  6  3  4  2  2\n          1 10  6  3  3  3  2\n          1 10  6  6  9  9  9\n          8 10 10 10  9     9\n          8  8  8  8     5  5\n                      5  5  5\n\nExample\n\n    To solve Friday 23rd of January\n\n    " << prog << " 5 23 1\n" << endl;
 }
 
 
@@ -654,7 +654,7 @@ int main(int argc, char* argv[])
         if( isHelpOpt){
             exit(0);
         } else {
-            exit(1);
+            exit(2);
         }
     } else {
         if(fSide==false){
@@ -749,7 +749,7 @@ int main(int argc, char* argv[])
             }
             cout  << "], \"nbSol\": " << nbSols << "}";
         }
-        if(!sols){
+        if(!sols && !inLine){
             if(fSide){
                 // turning pieces 5 is enough to get solution for all dates like wed 27 when using frosted side only, except sun 6th apr, for which another piece need to be returned
                 cout << "Try with option: -t 5 2 " << endl;

@@ -2,6 +2,7 @@
 gui_cpp/build/
 build-maker/
 build-solver/
+build-tests*/
 
 # Android builds
 build-android/

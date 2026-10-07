@@ -140,8 +140,10 @@ void Board::nextAvailablePos(int* ox, int* oy) const
     *ox = -1; *oy = -1;
 }
 
-bool Board::putSquare(int value, int x, int y)
+bool Board::putSquare(int value, long long x, long long y)
 {
+    if (x < -BOX || x >= BXL - BOX || y < -BOY || y >= BYL - BOY)
+        return false;
     if (cells[BOY + y][BOX + x] == 0) {
         cells[BOY + y][BOX + x] = value;
         return true;
@@ -157,7 +159,7 @@ Board* Board::putPiece(Piece& piece, int posX, int posY) const
 
     // Walk backward through the piece vectors
     int idx = -1;
-    int cx = posX, cy = posY;
+    long long cx = posX, cy = posY;
     Vect v = piece[idx];
     while (!v.isNull()) {
         cx -= v.x; cy -= v.y;
@@ -187,6 +189,7 @@ static bool Solve(Board& board, Piece* pieces[], int nbPieces, Board** sols,
     if (nbPieces != 0) {
         int posX = 0, posY = 0;
         board.nextAvailablePos(&posX, &posY);
+        if (posX < 0) return false;
 
         for (int pi = 0; pi < nbPieces && keep; ++pi) {
             if (cancelled.load(std::memory_order_relaxed)) { keep = false; break; }
@@ -215,6 +218,9 @@ static bool Solve(Board& board, Piece* pieces[], int nbPieces, Board** sols,
             }
         }
     } else {
+        int posX, posY;
+        board.nextAvailablePos(&posX, &posY);
+        if (posX >= 0) return false;
         // Solution found: prepend to linked list
         if (*sols) board.next = *sols;
         *sols  = &board;
@@ -385,6 +391,10 @@ bool loadPieceSetFromJson(const QString& path, LoadedPieceSet& out, QString& err
         error = "JSONパースエラー: " + parseErr.errorString();
         return false;
     }
+    if (!doc.isObject()) {
+        error = "JSONのルートはオブジェクトである必要があります";
+        return false;
+    }
 
     auto root    = doc.object();
     out.description = root["description"].toString();
@@ -393,21 +403,70 @@ bool loadPieceSetFromJson(const QString& path, LoadedPieceSet& out, QString& err
     out.pieces.clear();
 
     auto piecesArr = root["pieces"].toArray();
-    if (piecesArr.isEmpty()) {
-        error = "pieces 配列が空です";
+    if (piecesArr.isEmpty() || piecesArr.size() > 47) {
+        error = "pieces 配列には1〜47個のピースが必要です";
         return false;
     }
 
+    int totalArea = 0;
     for (int pi = 0; pi < piecesArr.size(); ++pi) {
         auto pobj    = piecesArr[pi].toObject();
+        if (!piecesArr[pi].isObject() || !pobj["vectors"].isArray()) {
+            error = "各ピースには vectors 配列が必要です";
+            return false;
+        }
         auto vecsArr = pobj["vectors"].toArray();
+        if (vecsArr.size() >= 47) {
+            error = "ピースが大きすぎます";
+            return false;
+        }
 
         std::vector<Vect> vecs;
         vecs.reserve(vecsArr.size());
+        std::set<std::pair<int,int>> cells{{0, 0}};
+        int cx = 0, cy = 0, minX = 0, maxX = 0, minY = 0, maxY = 0;
         for (const auto& va : vecsArr) {
             auto pair = va.toArray();
-            vecs.push_back({pair[0].toInt(), pair[1].toInt()});
+            if (!va.isArray() || pair.size() != 2 ||
+                !pair[0].isDouble() || !pair[1].isDouble() ||
+                pair[0].toDouble() < -7 || pair[0].toDouble() > 7 ||
+                pair[1].toDouble() < -7 || pair[1].toDouble() > 7 ||
+                pair[0].toDouble() != pair[0].toInt() ||
+                pair[1].toDouble() != pair[1].toInt()) {
+                error = "ベクトルは -7〜7 の整数2個で指定してください";
+                return false;
+            }
+            int dx = pair[0].toInt(), dy = pair[1].toInt();
+            cx += dx; cy += dy;
+            if (!cells.insert({cx, cy}).second) {
+                error = "ピース内のマスが重複しています";
+                return false;
+            }
+            minX = std::min(minX, cx); maxX = std::max(maxX, cx);
+            minY = std::min(minY, cy); maxY = std::max(maxY, cy);
+            vecs.push_back({dx, dy});
         }
+        if (maxX - minX >= 8 || maxY - minY >= 8) {
+            error = "ピースの幅・高さは8マス以下である必要があります";
+            return false;
+        }
+        // Vector chains may jump between sorted cells, but the cell set must
+        // still be one connected polyomino.
+        std::set<std::pair<int,int>> reached{{0, 0}};
+        std::vector<std::pair<int,int>> queue{{0, 0}};
+        for (size_t i = 0; i < queue.size(); ++i) {
+            auto [x, y] = queue[i];
+            for (auto [dx, dy] : {std::pair<int,int>{1,0}, {-1,0}, {0,1}, {0,-1}}) {
+                std::pair<int,int> next{x + dx, y + dy};
+                if (cells.count(next) && reached.insert(next).second)
+                    queue.push_back(next);
+            }
+        }
+        if (reached.size() != cells.size()) {
+            error = "ピースのマスがつながっていません";
+            return false;
+        }
+        totalArea += static_cast<int>(cells.size());
 
         auto relTrans = computeRelevantTrans(vecs, out.bothSides);
         unsigned char val = static_cast<unsigned char>(pi + 1);
@@ -419,6 +478,10 @@ bool loadPieceSetFromJson(const QString& path, LoadedPieceSet& out, QString& err
             val,
             relTrans.empty() ? nullptr : relTrans.data(),
             static_cast<int>(relTrans.size()));
+    }
+    if (totalArea != 47) {
+        error = "ピースの合計面積は47マスである必要があります";
+        return false;
     }
     return true;
 }
@@ -439,6 +502,9 @@ SolverOutput SolveDateCustom(int weekday, int day, int month, bool findAll,
     for (int i = 0; i < n; ++i) ptrs[i] = &pieces[i];
 
     Board  puzzle(weekday, day, month);
+    int totalArea = 0;
+    for (const auto& piece : pieces) totalArea += piece.shapeLength + 1;
+    if (totalArea != 47) return {};
     Board* sols   = nullptr;
     int    tries  = 0, plPcs = 0;
     bool   keep   = true;

@@ -2,7 +2,8 @@
 
 void SolverWorker::run()
 {
-    m_cancelled.store(false, std::memory_order_relaxed);
+    // Each worker is created for one search. Preserve cancellation requested
+    // after start() but before this thread enters run().
     // QDate::dayOfWeek() returns 1=Mon … 7=Sun, matching the solver convention
     if (useCustomPieces)
         result = SolveDateCustom(date.dayOfWeek(), date.day(), date.month(),

@@ -209,7 +209,8 @@ void BoardWidget::paintEvent(QPaintEvent*)
                                  bO && rO,   // bottom-right
                                  bO && lO);  // bottom-left
             p.setPen(Qt::NoPen);
-            p.setBrush(PIECE_COLORS[g]);
+            p.setBrush(g < 11 ? PIECE_COLORS[g]
+                             : QColor::fromHsv(((g - 11) * 47 + 20) % 360, 140, 200));
             p.drawPath(path);
         }
     }

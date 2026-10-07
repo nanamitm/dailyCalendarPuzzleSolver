@@ -269,10 +269,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 MainWindow::~MainWindow()
 {
     if (m_worker && m_worker->isRunning()) {
-        m_worker->requestCancel(); m_worker->wait(3000);
+        m_worker->requestCancel(); m_worker->wait();
     }
     if (m_analysisWorker && m_analysisWorker->isRunning()) {
-        m_analysisWorker->requestCancel(); m_analysisWorker->wait(3000);
+        m_analysisWorker->requestCancel(); m_analysisWorker->wait();
     }
 }
 
