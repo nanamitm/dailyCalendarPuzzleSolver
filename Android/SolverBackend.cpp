@@ -71,8 +71,6 @@ SolverBackend::SolverBackend(QObject* parent) : QObject(parent)
     updateBoardData(nullptr, QDate::currentDate());
 }
 
-// ── Slideshow ──────────────────────────────────────────────────────────────
-
 SolverBackend::~SolverBackend()
 {
     if (m_worker) {
@@ -80,6 +78,8 @@ SolverBackend::~SolverBackend()
         m_worker->wait();
     }
 }
+
+// ── Slideshow ──────────────────────────────────────────────────────────────
 
 void SolverBackend::setSlideshow(bool on)
 {
